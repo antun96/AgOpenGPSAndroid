@@ -53,7 +53,7 @@ namespace AgOpenGPS.Droid
         private TextView _workingWidth, _status, _raw;
         private CheckBox _steerEnabled, _steerInvertWas, _steerInvertMotor, _steerCytron, _steerRequireRtk, _steerSwitchEngages;
         private EditText _steerGain, _steerHighPwm, _steerMinPwm, _steerCounts, _steerWasOffset, _steerAckermann,
-            _steerMaxAngle, _steerMinSpeed, _steerMaxSpeed, _steerMaxOffLine;
+            _steerMaxAngle, _steerMinSpeed, _steerMaxSpeed, _steerMaxOffLine, _uturnRadius;
         private Spinner _steerSwitch;
         private TextView _steerLive;
         private static readonly string[] SteerSwitchCodes = { "none", "switch", "button" };
@@ -139,6 +139,7 @@ namespace AgOpenGPS.Droid
             s.SteerCytron = _steerCytron.Checked;
             s.SteerRequireRtk = _steerRequireRtk.Checked;
             s.SteerSwitchEngages = _steerSwitchEngages.Checked;
+            s.UTurnRadius = _uturnRadius.Text.Trim();
             int sw = _steerSwitch.SelectedItemPosition;
             s.SteerSwitch = sw >= 0 && sw < SteerSwitchCodes.Length ? SteerSwitchCodes[sw] : "none";
             s.DayColours = _colours.SelectedItemPosition == 1;
@@ -217,6 +218,7 @@ namespace AgOpenGPS.Droid
             _steerCytron.Checked = s.SteerCytron;
             _steerRequireRtk.Checked = s.SteerRequireRtk;
             _steerSwitchEngages.Checked = s.SteerSwitchEngages;
+            _uturnRadius.Text = s.UTurnRadius;
             _steerSwitch.SetSelection(System.Math.Max(0, System.Array.IndexOf(SteerSwitchCodes, s.SteerSwitch)));
             Task.Run(() =>
             {
@@ -294,6 +296,8 @@ namespace AgOpenGPS.Droid
             _steerMaxAngle = Ui.Field(this, right, Tr.T("Largest wheel angle (degrees)"), dec);
             _steerRequireRtk = new CheckBox(this) { Text = Tr.T("Steer only with RTK fix") };
             right.AddView(_steerRequireRtk);
+            _uturnRadius = Ui.Field(this, right, Tr.T("Turning radius for the headland turn (m)"), dec);
+            right.AddView(Ui.Hint(this, Tr.T("The turn needs a headland about one turning radius wide (more when the passes are closer than two radii). Turn on and pick the direction with the U-turn button on the driving screen.")));
 
             right.AddView(Ui.Hint(this, Tr.T("Motor and sensor (sent to the module, same meaning as in AgOpenGPS):")));
             _steerGain = Ui.Field(this, right, Tr.T("Proportional gain"), num);

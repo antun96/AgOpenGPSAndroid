@@ -134,6 +134,21 @@ namespace AgOpenGPS.Mobile.Core.Guidance
         public double DistanceToHeadland = double.NaN;
         /// <summary>Work is off because the implement is in the headland (switches on again in the main part).</summary>
         public bool WorkPausedInHeadland;
+
+        /// <summary>Automatic headland turns are on.</summary>
+        public bool UTurnEnabled;
+        /// <summary>The next turn goes to the right (as seen from the seat).</summary>
+        public bool UTurnRight;
+        /// <summary>The planned or running turn (draw plane), empty without one.</summary>
+        public List<GeoPoint> UTurnPath = new List<GeoPoint>();
+        /// <summary>The vehicle is following the turn (guidance and steering use it, not the pass).</summary>
+        public bool UTurnActive;
+        /// <summary>A turn is planned but does not fit inside the boundary.</summary>
+        public bool UTurnBlocked;
+        /// <summary>Distance to where the turn starts, metres; NaN without a plan.</summary>
+        public double UTurnDistance = double.NaN;
+        /// <summary>Distance off the turn path while turning, metres; NaN otherwise.</summary>
+        public double UTurnOffPath = double.NaN;
     }
 
     /// <summary>
@@ -188,6 +203,16 @@ namespace AgOpenGPS.Mobile.Core.Guidance
         /// <summary>Metres the implement must go past the headland line before Work switches (against flicker).</summary>
         public const double HeadlandHysteresisMeters = 0.5;
 
+        private bool _uturnEnabled, _uturnRight = true, _uturnActive;
+        private double _uturnRadius = 6.0;
+        private int _uturnSkip;
+        private UTurnPlan _uturn;
+        private List<GeoPoint> _hlInner, _hlBoundary; // headland line and boundary on the line's plane
+        private object _hlKeyPoly, _hlKeyPlane;
+        private double _hlKeyWidth = double.NaN;
+        /// <summary>The turn is planned (and followed) once its start is this close.</summary>
+        public const double UTurnPlanMeters = UTurn.LeadMeters;
+
         private bool _boundaryRecording;
         private BoundaryMode _boundaryMode;
         private BoundarySide _boundarySide;
@@ -212,6 +237,7 @@ namespace AgOpenGPS.Mobile.Core.Guidance
                 _fix = guide;
                 UpdateHeadland(tool);
                 PaintCoverage(tool);
+                UpdateUTurn();
                 fix = guide;
                 if (_boundaryRecording && _boundaryMode == BoundaryMode.Drive && fix.HasPosition && _boundary.Count < MaxCurvePoints)
                 {
@@ -236,6 +262,105 @@ namespace AgOpenGPS.Mobile.Core.Guidance
                     }
                 }
             }
+        }
+
+        /// <summary>Automatic turns at the headland (needs a line, a boundary and a headland). Off cancels a running turn.</summary>
+        public bool UTurnEnabled
+        {
+            get { lock (_lock) return _uturnEnabled; }
+            set
+            {
+                lock (_lock)
+                {
+                    _uturnEnabled = value;
+                    if (!value) { _uturn = null; _uturnActive = false; }
+                }
+            }
+        }
+
+        /// <summary>Direction of the next turn; flips by itself after each turn.</summary>
+        public bool UTurnRight
+        {
+            get { lock (_lock) return _uturnRight; }
+            set
+            {
+                lock (_lock)
+                {
+                    if (_uturnRight == value) return;
+                    _uturnRight = value;
+                    if (!_uturnActive) _uturn = null;
+                }
+            }
+        }
+
+        /// <summary>Turning radius of the tractor, metres.</summary>
+        public double UTurnRadius
+        {
+            get { lock (_lock) return _uturnRadius; }
+            set { lock (_lock) _uturnRadius = Math.Max(1, value); }
+        }
+
+        /// <summary>Passes skipped at each turn (0 = into the next pass).</summary>
+        public int UTurnSkip
+        {
+            get { lock (_lock) return _uturnSkip; }
+            set { lock (_lock) _uturnSkip = Math.Max(0, Math.Min(10, value)); }
+        }
+
+        /// <summary>Plans the turn near the headland line, follows it, and ends it on the next pass. Under the lock.</summary>
+        private void UpdateUTurn()
+        {
+            if (!_uturnEnabled || _line == null || _plane == null || _fix == null || !_fix.HasPosition
+                || _fieldPoly == null || _fieldPoly.Count < 3 || _headlandWidth <= 0 || double.IsNaN(_heading.Heading))
+            {
+                _uturn = null;
+                _uturnActive = false;
+                return;
+            }
+
+            GeoPoint v = _plane.ToLocal(_fix.Latitude, _fix.Longitude);
+            if (_uturnActive && _uturn != null)
+            {
+                double along = UTurn.Along(_uturn.Path, v, out double off);
+                if (along >= _uturn.LeadOutStartsAt + 3 || off > 10)
+                {
+                    // On the next pass (or far off the turn, e.g. driven by hand): done; next turn the other way.
+                    if (off <= 10) _uturnRight = !_uturnRight;
+                    _uturn = null;
+                    _uturnActive = false;
+                }
+                return;
+            }
+
+            if (!ReferenceEquals(_hlKeyPoly, _fieldPoly) || !ReferenceEquals(_hlKeyPlane, _plane) || _hlKeyWidth != _headlandWidth)
+            {
+                double signed = 0;
+                for (int i = 0, j = _fieldPoly.Count - 1; i < _fieldPoly.Count; j = i++)
+                    signed += _fieldPoly[j].Easting * _fieldPoly[i].Northing - _fieldPoly[i].Easting * _fieldPoly[j].Northing;
+                _hlInner = Geometry.Reproject(Geometry.OffsetClosed(_fieldPoly, signed > 0 ? -_headlandWidth : _headlandWidth), _fieldPlane, _plane);
+                _hlBoundary = Geometry.Reproject(_fieldPoly, _fieldPlane, _plane);
+                _hlKeyPoly = _fieldPoly;
+                _hlKeyPlane = _plane;
+                _hlKeyWidth = _headlandWidth;
+            }
+
+            AbGuidanceResult r = AbGuidance.Compute(_line, _plane, v, _heading.Heading, _passWidth);
+            if (double.IsNaN(r.HeadingErrorDegrees) || Math.Abs(r.HeadingErrorDegrees) > 30)
+            {
+                _uturn = null; // not driving along the pass (e.g. still turning by hand)
+                return;
+            }
+
+            List<GeoPoint> pass = _line.PassPolyline(_plane, r.Pass, _passWidth);
+            int k = _uturnSkip + 1;
+            int target = r.Pass + (_uturnRight == r.SameDirectionAsAb ? k : -k);
+            List<GeoPoint> next = _line.PassPolyline(_plane, target, _passWidth);
+            if (!r.SameDirectionAsAb) pass.Reverse();
+            else next.Reverse();
+
+            UTurnPlan plan = UTurn.Plan(pass, next, _hlInner, _hlBoundary, v, _uturnRight, k * _passWidth, _uturnRadius);
+            _uturn = plan != null && plan.DistanceToStart <= UTurnPlanMeters ? plan : null;
+            _uturnActive = _uturn != null && _uturn.Fits;
         }
 
         /// <summary>Antenna and implement position on the tractor. Set a new object to change it.</summary>
@@ -793,6 +918,27 @@ namespace AgOpenGPS.Mobile.Core.Guidance
                 s.InHeadland = _toolInHeadland;
                 s.DistanceToHeadland = _toolToHeadland;
                 s.WorkPausedInHeadland = _pausedInHeadland;
+                s.UTurnEnabled = _uturnEnabled;
+                s.UTurnRight = _uturnRight;
+                if (_uturn != null && _line != null)
+                {
+                    // The draw plane is the line's plane whenever there is a line.
+                    s.UTurnPath = new List<GeoPoint>(_uturn.Path);
+                    s.UTurnActive = _uturnActive;
+                    s.UTurnBlocked = !_uturn.Fits;
+                    if (hasPos)
+                    {
+                        GeoPoint v = _plane.ToLocal(_fix.Latitude, _fix.Longitude);
+                        double along = UTurn.Along(_uturn.Path, v, out double off);
+                        s.UTurnDistance = Math.Max(0, UTurn.Along(_uturn.Path, _uturn.Start, out _) - along);
+                        if (_uturnActive)
+                        {
+                            s.UTurnOffPath = off;
+                            double look = Math.Min(Steering.LookaheadMeters(_fix.SpeedKmh), Math.Max(2.0, _uturnRadius * 0.8));
+                            s.Steer = Steering.Compute(_uturn.Path, v, _heading.Heading, true, look) ?? s.Steer;
+                        }
+                    }
+                }
                 if (_line != null)
                 {
                     s.LineA = draw.ToLocal(_line.LatitudeA, _line.LongitudeA);

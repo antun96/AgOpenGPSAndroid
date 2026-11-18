@@ -39,6 +39,16 @@ AutoSteer se sam isključuje, uz dugi ton i poruku, kad: okrenete volan (ili se 
 - **Najmanji PWM**: tek toliko da se motor uopće pokrene. **Najveći PWM**: ograničava brzinu motora.
 - Uvijek držite ruke blizu volana i pratite što je ispred.
 
+### Okretanje na uvrtinama
+
+S međom parcele i uvrtinama (**Postavke → Uvrtine**) AutoSteer se može i sam okretati:
+
+1. Pritisnite **Okret: isklj.** ispod gumba AutoSteer: pokazat će **Okret: desno ▶**. Ponovno za **◀ Okret: lijevo**, još jednom za isključivanje.
+2. Odaberite u koji prohod: **Sljedeći prohod**, **2. prohod** ili **3. prohod** (preskakanje prohoda čini okret širim i lakšim).
+3. Oko 20 m prije linije uvrtina okret se pojavi kao žuta isprekidana linija, a postaje puna dok ga traktor prati. Nakon svakog okreta sljedeći ide na drugu stranu.
+
+Usporite za okret. Ako bi okret izašao s parcele, linija je crvena i AutoSteer staje na liniji uvrtina: proširite uvrtine, odaberite kasniji prohod ili podesite **polumjer okretanja** u **Postavke → AutoSteer**. AutoSteer staje i izvan međe parcele.
+
 ## Parcele
 
 - **Parcela: ...** (desna ploča) otvara popis: **Nova parcela**, otvori, preimenuj, obriši.

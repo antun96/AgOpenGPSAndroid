@@ -152,6 +152,8 @@ namespace AgOpenGPS.Droid
             }
             _steerConfigDirty = true;
             if (Simulator != null) Simulator.Wheelbase = Settings.WheelbaseMeters;
+            Guidance.UTurnRadius = Settings.UTurnRadiusMeters;
+            Guidance.UTurnSkip = Settings.UTurnPass - 1;
             if (Map != null) Map.UrlTemplate = string.IsNullOrWhiteSpace(Settings.MapUrl) ? MapTiles.DefaultUrl : Settings.MapUrl;
             ReloadAlerts();
         }
@@ -407,6 +409,27 @@ namespace AgOpenGPS.Droid
             return true;
         }
 
+        /// <summary>The U-turn button: off, then turning right, then left, then off again.</summary>
+        public static void CycleUTurn()
+        {
+            if (!Settings.UTurnOn)
+            {
+                Settings.UTurnOn = true;
+                Guidance.UTurnRight = true;
+            }
+            else if (Guidance.UTurnRight) Guidance.UTurnRight = false;
+            else Settings.UTurnOn = false;
+            Settings.Save();
+        }
+
+        /// <summary>The pass button: turn into the next, 2nd or 3rd pass.</summary>
+        public static void CycleUTurnPass()
+        {
+            Settings.UTurnPass = Settings.UTurnPass % 3 + 1;
+            Settings.Save();
+            Guidance.UTurnSkip = Settings.UTurnPass - 1;
+        }
+
         private static void StartSteerLoop()
         {
             _steerRunning = true;
@@ -421,6 +444,7 @@ namespace AgOpenGPS.Droid
         {
             _steerRunning = false;
             lock (SteerLock) Steer.Disengage();
+            Guidance.UTurnEnabled = false;
             _steerThread?.Join(500);
             _steerThread = null;
         }
@@ -454,6 +478,9 @@ namespace AgOpenGPS.Droid
                         SteerOffReason off;
                         lock (SteerLock)
                         {
+                            // Headland turns only while AutoSteer drives; switching off cancels a running turn.
+                            bool turns = Settings.UTurnOn && Steer.Engaged;
+                            if (Guidance.UTurnEnabled != turns) Guidance.UTurnEnabled = turns;
                             cmd = Steer.Update(SteerInputsNow());
                             off = Steer.TakeAutomaticOff();
                         }
@@ -469,6 +496,7 @@ namespace AgOpenGPS.Droid
                     else
                     {
                         _lastSteerCommand = null;
+                        if (Guidance.UTurnEnabled) Guidance.UTurnEnabled = false;
                     }
                 }
                 catch (Exception)

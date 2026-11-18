@@ -24,6 +24,9 @@ namespace AgOpenGPS.Droid
         private readonly Paint _pointA = Fill("#FF7043");
         private readonly Paint _cornerDot = Fill("#4DD0E1");
         private readonly Paint _headland = Stroke(Palette.Headland, 2.5f);
+        // The headland turn: dashed while planned, solid while followed, red when it does not fit.
+        private readonly Paint _uturn = new Paint { Color = Color.ParseColor("#FFD600"), StrokeWidth = 3, AntiAlias = true };
+        private readonly Paint _uturnBlocked = new Paint { Color = Color.ParseColor("#E53935"), StrokeWidth = 3, AntiAlias = true };
         private readonly Paint _abDot = Fill(Palette.RefLine);
         private readonly Paint _abText = new Paint(PaintFlags.AntiAlias) { Color = Color.White, TextAlign = Paint.Align.Center, FakeBoldText = true };
         private readonly Paint _goal = Fill(Palette.Goal);
@@ -57,6 +60,12 @@ namespace AgOpenGPS.Droid
             _scaleText.SetShadowLayer(2, 0, 0, Color.Black);
             SetUpGestures(context);
             _headland.SetPathEffect(new DashPathEffect(new[] { 14 * _density, 9 * _density }, 0));
+            _uturnBlocked.SetPathEffect(new DashPathEffect(new[] { 10 * _density, 6 * _density }, 0));
+            foreach (Paint p in new[] { _uturn, _uturnBlocked })
+            {
+                p.SetStyle(Paint.Style.Stroke);
+                p.StrokeWidth *= _density;
+            }
             _abText.TextSize = 13 * _density;
             _hint.TextSize = global::Android.Util.TypedValue.ApplyDimension(global::Android.Util.ComplexUnitType.Sp, 18, context.Resources.DisplayMetrics);
             foreach (Paint p in new[] { _current, _other, _refLine, _recording, _boundary, _boundaryRec, _vehicleEdge, _goalLine, _headland }) p.StrokeWidth *= _density;
@@ -299,6 +308,11 @@ namespace AgOpenGPS.Droid
 
             DrawLine(s.Boundary, _boundary, closed: true);
             DrawLine(s.HeadlandLine, _headland, closed: true);
+            if (s.UTurnPath.Count >= 2)
+            {
+                _uturn.SetPathEffect(s.UTurnActive ? null : new DashPathEffect(new[] { 10 * _density, 6 * _density }, 0));
+                DrawLine(s.UTurnPath, s.UTurnBlocked ? _uturnBlocked : _uturn);
+            }
             if (s.RecordingBoundary)
             {
                 DrawLine(s.BoundaryPath, _boundaryRec);

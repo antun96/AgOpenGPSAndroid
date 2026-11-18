@@ -64,6 +64,18 @@ namespace AgOpenGPS.Droid
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
             // ---------------------------------------------------------------- AutoSteer
+            ["U-turn: off"] = "Okret: isklj.",
+            ["U-turn: right ▶"] = "Okret: desno ▶",
+            ["◀ U-turn: left"] = "◀ Okret: lijevo",
+            ["Next pass"] = "Sljedeći prohod",
+            ["2nd pass"] = "2. prohod",
+            ["3rd pass"] = "3. prohod",
+            ["Turning at the headland"] = "Okretanje na uvrtinama",
+            ["The turn does not fit: AutoSteer stops at the headland line"] = "Okret ne stane: AutoSteer staje na liniji uvrtina",
+            ["AutoSteer: the turn does not fit in the headland"] = "AutoSteer: okret ne stane u uvrtine",
+            ["AutoSteer: outside the field"] = "AutoSteer: izvan parcele",
+            ["Turning radius for the headland turn (m)"] = "Polumjer okretanja na uvrtinama (m)",
+            ["The turn needs a headland about one turning radius wide (more when the passes are closer than two radii). Turn on and pick the direction with the U-turn button on the driving screen."] = "Okret traži uvrtine široke otprilike jedan polumjer okretanja (više kad su prohodi bliže od dva polumjera). Uključite ga i odaberite smjer gumbom Okret na zaslonu za vožnju.",
             ["AutoSteer: OFF"] = "AutoSteer: ISKLJ.",
             ["AutoSteer: ON"] = "AutoSteer: UKLJ.",
             ["No steer module"] = "Nema modula upravljanja",

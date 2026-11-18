@@ -66,7 +66,19 @@ namespace AgOpenGPS.Droid
             SteerRequireRtk = _prefs.GetBoolean("steer.requireRtk", true);
             SteerSwitch = _prefs.GetString("steer.switch", "none");
             SteerSwitchEngages = _prefs.GetBoolean("steer.switchEngages", false);
+            UTurnRadius = _prefs.GetString("uturn.radius", "6");
+            int.TryParse(_prefs.GetString("uturn.pass", "1"), NumberStyles.Integer, Inv, out UTurnPass);
+            UTurnPass = System.Math.Max(1, System.Math.Min(3, UTurnPass));
+            UTurnOn = _prefs.GetBoolean("uturn.on", false);
         }
+
+        /// <summary>Turning radius for the headland turn, metres, as typed.</summary>
+        public string UTurnRadius;
+        /// <summary>Turn into the 1st (next), 2nd or 3rd pass.</summary>
+        public int UTurnPass;
+        /// <summary>Automatic headland turns while AutoSteer is on (button on the driving screen).</summary>
+        public bool UTurnOn;
+        public double UTurnRadiusMeters => System.Math.Max(2, ParseMeters(UTurnRadius, 6));
 
         /// <summary>A steer module is fitted: send it the steer messages and show the AutoSteer button.</summary>
         public bool SteerEnabled;
@@ -294,6 +306,9 @@ namespace AgOpenGPS.Droid
                 .PutBoolean("steer.requireRtk", SteerRequireRtk)
                 .PutString("steer.switch", SteerSwitch)
                 .PutBoolean("steer.switchEngages", SteerSwitchEngages)
+                .PutString("uturn.radius", UTurnRadius)
+                .PutString("uturn.pass", UTurnPass.ToString(Inv))
+                .PutBoolean("uturn.on", UTurnOn)
                 .Apply();
         }
 

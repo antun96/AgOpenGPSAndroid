@@ -43,7 +43,8 @@ namespace AgOpenGPS.Droid
         private LinearLayout _simPanel, _cornerRow;
         private Button _followButton;
         private TextView _simSpeed;
-        private Button _steer;
+        private Button _steer, _uturn, _uturnPass;
+        private LinearLayout _uturnRow;
         private TextView _steerInfo;
         private Button _simAuto;
         private Button _connect, _work, _field, _boundary, _cancelBoundary, _straight, _curve, _a, _b, _cancel;
@@ -761,7 +762,15 @@ namespace AgOpenGPS.Droid
             bool enabled = AppState.Settings.SteerEnabled;
             _steer.Visibility = enabled ? ViewStates.Visible : ViewStates.Gone;
             _steerInfo.Visibility = _steer.Visibility;
+            _uturnRow.Visibility = _steer.Visibility;
             if (!enabled) return;
+
+            AppSettings st = AppState.Settings;
+            GuidanceSnapshot gs = AppState.Guidance.GetSnapshot();
+            bool right = AppState.Guidance.UTurnRight;
+            _uturn.Text = !st.UTurnOn ? Tr.T("U-turn: off") : right ? Tr.T("U-turn: right ▶") : Tr.T("◀ U-turn: left");
+            _uturn.SetBackgroundColor(Color.ParseColor(!st.UTurnOn ? "#E0E0E0" : gs.UTurnBlocked ? "#E53935" : gs.UTurnActive ? "#F9A825" : "#FFF59D"));
+            _uturnPass.Text = st.UTurnPass == 1 ? Tr.T("Next pass") : st.UTurnPass == 2 ? Tr.T("2nd pass") : Tr.T("3rd pass");
 
             bool on = AppState.SteerEngaged;
             _steer.Text = on ? Tr.T("AutoSteer: ON") : Tr.T("AutoSteer: OFF");
@@ -772,6 +781,10 @@ namespace AgOpenGPS.Droid
             SteerCommand cmd = AppState.LastSteerCommand;
             if (fb == null || (DateTime.UtcNow - fb.ReceivedUtc).TotalSeconds > 2)
                 _steerInfo.Text = AppState.IsConnected ? Tr.T("No steer module") : "";
+            else if (on && gs.UTurnActive)
+                _steerInfo.Text = Tr.T("Turning at the headland");
+            else if (on && gs.UTurnBlocked)
+                _steerInfo.Text = Tr.T("The turn does not fit: AutoSteer stops at the headland line");
             else if (on && cmd != null)
                 _steerInfo.Text = Tr.F("Wheel {0:+0.0;-0.0;0.0}° → {1:+0.0;-0.0;0.0}°   PWM {2}", fb.ActualAngle, cmd.AngleDeg, fb.Pwm);
             else
@@ -942,6 +955,12 @@ namespace AgOpenGPS.Droid
             panel.AddView(_steer);
             _steerInfo = Ui.Text(this, 14, false, Palette.PanelText);
             panel.AddView(_steerInfo);
+            _uturnRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+            _uturn = Ui.Button(this, Tr.T("U-turn: off"), AppState.CycleUTurn, 52);
+            _uturnPass = Ui.Button(this, Tr.T("Next pass"), AppState.CycleUTurnPass, 52);
+            _uturnRow.AddView(_uturn, Ui.Weight(1.3f));
+            _uturnRow.AddView(_uturnPass, Ui.Weight(1));
+            panel.AddView(_uturnRow);
 
             _workLabel = Label(Tr.T("Implement"));
             panel.AddView(_workLabel);

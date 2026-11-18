@@ -37,6 +37,10 @@ namespace AgOpenGPS.Mobile.Core
         NoModule,
         /// <summary>The steer switch was switched off, or the driver turned the wheel.</summary>
         SteerSwitch,
+        /// <summary>At the headland, but the automatic turn would leave the field.</summary>
+        TurnDoesNotFit,
+        /// <summary>Outside the field boundary.</summary>
+        LeftField,
     }
 
     /// <summary>
@@ -106,6 +110,10 @@ namespace AgOpenGPS.Mobile.Core
         public double SteerDegrees = double.NaN;
         public double LookaheadMeters = double.NaN;
         public bool Working;
+        /// <summary>Inside the open field's boundary; null without a boundary.</summary>
+        public bool? InsideField;
+        /// <summary>A headland turn is planned that does not fit, and its start is reached.</summary>
+        public bool TurnBlockedHere;
         /// <summary>Latest message from the module, or null.</summary>
         public SteerFeedback Feedback;
 
@@ -121,6 +129,13 @@ namespace AgOpenGPS.Mobile.Core
                 i.SpeedKmh = fix.SpeedKmh;
             }
             if (s?.Result != null) i.CrossTrackMeters = s.Result.CrossTrackMeters;
+            // While turning at the headland, "off the line" means off the turn path.
+            if (s != null && s.UTurnActive && !double.IsNaN(s.UTurnOffPath)) i.CrossTrackMeters = s.UTurnOffPath;
+            if (s != null)
+            {
+                i.InsideField = s.InsideField;
+                i.TurnBlockedHere = s.UTurnBlocked && !double.IsNaN(s.UTurnDistance) && s.UTurnDistance < 1.0;
+            }
             if (s?.Steer != null)
             {
                 i.SteerDegrees = s.Steer.SteerDegrees;
@@ -271,6 +286,8 @@ namespace AgOpenGPS.Mobile.Core
             else _rtkBadSince = null;
 
             if (double.IsNaN(i.SteerDegrees) || double.IsNaN(i.CrossTrackMeters)) return SteerOffReason.NoLine;
+            if (i.InsideField == false) return SteerOffReason.LeftField;
+            if (i.TurnBlockedHere) return SteerOffReason.TurnDoesNotFit;
             if (Math.Abs(i.CrossTrackMeters) > s.MaxOffLineMeters) return SteerOffReason.OffLine;
 
             double speed = double.IsNaN(i.SpeedKmh) ? 0 : Math.Abs(i.SpeedKmh);
@@ -305,6 +322,8 @@ namespace AgOpenGPS.Mobile.Core
                 case SteerOffReason.TooSlow: return "AutoSteer: too slow";
                 case SteerOffReason.NoModule: return "AutoSteer: no steer module";
                 case SteerOffReason.SteerSwitch: return "AutoSteer: steer switch off or wheel turned";
+                case SteerOffReason.TurnDoesNotFit: return "AutoSteer: the turn does not fit in the headland";
+                case SteerOffReason.LeftField: return "AutoSteer: outside the field";
                 default: return "";
             }
         }

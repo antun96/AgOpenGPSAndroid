@@ -39,6 +39,16 @@ AutoSteer switches itself off, with a long tone and a message, when: you turn th
 - **Minimum PWM**: just enough that the motor moves at all. **Maximum PWM**: limits the motor speed.
 - Always keep your hands near the wheel and watch the field ahead.
 
+### Turning at the headland
+
+With a field boundary and a headland (**Settings → Headland**), AutoSteer can also turn by itself:
+
+1. Press **U-turn: off** under the AutoSteer button: it shows **U-turn: right ▶**. Press again for **◀ U-turn: left**, once more for off.
+2. Choose where to turn into: **Next pass**, **2nd pass** or **3rd pass** (skipping passes makes the turn wider and easier).
+3. About 20 m before the headland line the turn appears as a dashed yellow line, and turns solid while the tractor follows it. After each turn the next one goes the other way.
+
+Slow down for the turn. If the turn would leave the field the line is red and AutoSteer stops at the headland line: make the headland wider, choose a later pass, or set the **turning radius** in **Settings → AutoSteer**. AutoSteer also stops outside the field boundary.
+
 ## Fields
 
 - **Field: ...** (right panel) opens the list: **New field**, open, rename, delete.
