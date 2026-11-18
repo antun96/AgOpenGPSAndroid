@@ -43,6 +43,8 @@ namespace AgOpenGPS.Droid
         private LinearLayout _simPanel, _cornerRow;
         private Button _followButton;
         private TextView _simSpeed;
+        private Button _steer;
+        private TextView _steerInfo;
         private Button _simAuto;
         private Button _connect, _work, _field, _boundary, _cancelBoundary, _straight, _curve, _a, _b, _cancel;
         private GuidanceView _view;
@@ -635,6 +637,7 @@ namespace AgOpenGPS.Droid
             _stats.Text = g.WorkedSquareMeters > 0 || !double.IsNaN(g.FieldSquareMeters) ? FormatStats(g) : "";
 
             _connect.Text = AppState.IsConnected ? Tr.T("Disconnect") : Tr.T("Connect");
+            RenderSteer();
 
             // Fix badge and info line.
             SessionStats st = link?.Session;
@@ -743,7 +746,36 @@ namespace AgOpenGPS.Droid
             GnssSimulator sim = AppState.Simulator;
             if (sim == null) return;
             sim.AutoSteer = false;
-            sim.WheelAngle = degrees == 0 ? 0 : sim.WheelAngle + degrees;
+            // Turning the wheel by hand while the steer module steers is a take-over, as on the tractor.
+            sim.DriverTurnsWheel(degrees == 0 ? 0 : sim.WheelAngle + degrees);
+        }
+
+        private void OnSteerClicked()
+        {
+            string why = AppState.ToggleSteer();
+            if (why != null) Toast_(Tr.T(why), true);
+        }
+
+        private void RenderSteer()
+        {
+            bool enabled = AppState.Settings.SteerEnabled;
+            _steer.Visibility = enabled ? ViewStates.Visible : ViewStates.Gone;
+            _steerInfo.Visibility = _steer.Visibility;
+            if (!enabled) return;
+
+            bool on = AppState.SteerEngaged;
+            _steer.Text = on ? Tr.T("AutoSteer: ON") : Tr.T("AutoSteer: OFF");
+            _steer.SetBackgroundColor(Color.ParseColor(on ? "#1565C0" : "#9E9E9E"));
+            _steer.SetTextColor(Color.White);
+
+            SteerFeedback fb = AppState.SteerFeedback;
+            SteerCommand cmd = AppState.LastSteerCommand;
+            if (fb == null || (DateTime.UtcNow - fb.ReceivedUtc).TotalSeconds > 2)
+                _steerInfo.Text = AppState.IsConnected ? Tr.T("No steer module") : "";
+            else if (on && cmd != null)
+                _steerInfo.Text = Tr.F("Wheel {0:+0.0;-0.0;0.0}° → {1:+0.0;-0.0;0.0}°   PWM {2}", fb.ActualAngle, cmd.AngleDeg, fb.Pwm);
+            else
+                _steerInfo.Text = Tr.F("Wheel {0:+0.0;-0.0;0.0}°", fb.ActualAngle);
         }
 
         private void RenderSimulator()
@@ -903,6 +935,13 @@ namespace AgOpenGPS.Droid
             // Right panel.
             var panel = new LinearLayout(this) { Orientation = Orientation.Vertical };
             panel.SetPadding(Dp(8), 0, Dp(8), Dp(8));
+
+            // AutoSteer: big and at the top, so it is always in reach.
+            _steer = Ui.Button(this, Tr.T("AutoSteer: OFF"), OnSteerClicked, 80);
+            _steer.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 22);
+            panel.AddView(_steer);
+            _steerInfo = Ui.Text(this, 14, false, Palette.PanelText);
+            panel.AddView(_steerInfo);
 
             _workLabel = Label(Tr.T("Implement"));
             panel.AddView(_workLabel);

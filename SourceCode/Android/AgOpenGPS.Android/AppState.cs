@@ -145,6 +145,13 @@ namespace AgOpenGPS.Droid
             Guidance.AutoHeadland = Settings.AutoHeadland;
             Palette.SetDay(Settings.DayColours);
             Tr.SetLanguage(Settings.Language);
+            lock (SteerLock)
+            {
+                Steer.Settings = Settings.BuildSteerSettings();
+                if (!Settings.SteerEnabled) Steer.Disengage();
+            }
+            _steerConfigDirty = true;
+            if (Simulator != null) Simulator.Wheelbase = Settings.WheelbaseMeters;
             if (Map != null) Map.UrlTemplate = string.IsNullOrWhiteSpace(Settings.MapUrl) ? MapTiles.DefaultUrl : Settings.MapUrl;
             ReloadAlerts();
         }
@@ -339,6 +346,143 @@ namespace AgOpenGPS.Droid
             Guidance.SetActiveLine(line == null ? null : Lines.Active);
         }
 
+        // ---------------------------------------------------------------- AutoSteer
+
+        /// <summary>Decides when steering may be on and the wheel angle; used only from the steer loop or under <see cref="SteerLock"/>.</summary>
+        public static SteerController Steer { get; } = new SteerController();
+        private static readonly object SteerLock = new object();
+        private static volatile SteerFeedback _steerFeedback;
+        private static volatile SteerCommand _lastSteerCommand;
+        private static volatile bool _steerRunning, _steerConfigDirty = true;
+        private static System.Threading.Thread _steerThread;
+        private static int _steerConnects = -1;
+
+        /// <summary>Latest message from the steer module, or null.</summary>
+        public static SteerFeedback SteerFeedback => _steerFeedback;
+
+        /// <summary>What was last sent to the module, or null.</summary>
+        public static SteerCommand LastSteerCommand => _lastSteerCommand;
+
+        public static bool SteerEngaged => Steer.Engaged;
+
+        private static SteerInputs SteerInputsNow()
+        {
+            LinkSnapshot link = Link?.GetSnapshot();
+            return SteerInputs.From(Guidance.GetSnapshot(), link != null && link.State == LinkState.Connected, _steerFeedback, DateTime.UtcNow);
+        }
+
+        /// <summary>The AutoSteer button: switches on (returns why it cannot, English, or null) or off.</summary>
+        public static string ToggleSteer()
+        {
+            if (!Settings.SteerEnabled) return "Switch AutoSteer on in Settings first";
+            lock (SteerLock)
+            {
+                if (Steer.Engaged)
+                {
+                    Steer.Disengage();
+                    return null;
+                }
+                SteerOffReason r = Steer.TryEngage(SteerInputsNow());
+                if (r == SteerOffReason.None)
+                {
+                    Sounds.PlaySteer(true);
+                    return null;
+                }
+                return SteerController.Message(r);
+            }
+        }
+
+        /// <summary>Sets the wheel angle sensor zero so the wheel angle now reads 0. False without module messages.</summary>
+        public static bool ZeroWheelAngle()
+        {
+            SteerFeedback fb = _steerFeedback;
+            if (fb == null || (DateTime.UtcNow - fb.ReceivedUtc).TotalSeconds > 2) return false;
+            SteerSettings s = Settings.BuildSteerSettings();
+            // The module reads (raw + offset) / counts per degree, so the offset moves by the angle in counts.
+            double counts = fb.ActualAngle * Math.Max(1, s.CountsPerDegree);
+            if (fb.ActualAngle < 0 && s.Ackermann > 0) counts /= s.Ackermann / 100.0;
+            Settings.SteerWasOffset = ((int)Math.Round(s.WasOffset - counts)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Settings.Save();
+            ApplySettings();
+            return true;
+        }
+
+        private static void StartSteerLoop()
+        {
+            _steerRunning = true;
+            _steerConnects = -1;
+            _steerFeedback = null;
+            var t = new System.Threading.Thread(SteerLoop) { IsBackground = true, Name = "AutoSteer" };
+            _steerThread = t;
+            t.Start();
+        }
+
+        private static void StopSteerLoop()
+        {
+            _steerRunning = false;
+            lock (SteerLock) Steer.Disengage();
+            _steerThread?.Join(500);
+            _steerThread = null;
+        }
+
+        /// <summary>10 times a second while connected: the checks, and PGN 254 to the module (also with AutoSteer off, as AgOpenGPS does).</summary>
+        private static void SteerLoop()
+        {
+            var period = TimeSpan.FromMilliseconds(100);
+            DateTime next = DateTime.UtcNow;
+            while (_steerRunning)
+            {
+                try
+                {
+                    LinkSupervisor link = Link;
+                    if (link != null && Settings.SteerEnabled)
+                    {
+                        // Settings to the module on every new connection and after a change.
+                        LinkSnapshot snap = link.GetSnapshot();
+                        if (snap.State == LinkState.Connected && (snap.Connects != _steerConnects || _steerConfigDirty))
+                        {
+                            SteerSettings ss;
+                            lock (SteerLock) ss = Steer.Settings.Clone();
+                            if (link.SendFrame(SteerPgn.BuildSettings(ss)) && link.SendFrame(SteerPgn.BuildConfig(ss)))
+                            {
+                                _steerConnects = snap.Connects;
+                                _steerConfigDirty = false;
+                            }
+                        }
+
+                        SteerCommand cmd;
+                        SteerOffReason off;
+                        lock (SteerLock)
+                        {
+                            cmd = Steer.Update(SteerInputsNow());
+                            off = Steer.TakeAutomaticOff();
+                        }
+                        _lastSteerCommand = cmd;
+                        link.SendFrame(cmd.Frame);
+                        if (off != SteerOffReason.None)
+                        {
+                            Sounds.PlaySteer(false);
+                            LastAlert = SteerController.Message(off);
+                            LastAlertUtc = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        _lastSteerCommand = null;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Never let one bad cycle end the loop; the module's own watchdog stops the motor meanwhile.
+                }
+
+                next += period;
+                TimeSpan wait = next - DateTime.UtcNow;
+                if (wait > TimeSpan.Zero) System.Threading.Thread.Sleep(wait);
+                else next = DateTime.UtcNow; // fell behind: do not try to catch up
+            }
+        }
+
         // ---------------------------------------------------------------- connection
 
         /// <summary>Starts the link to the saved device. Returns a message when it cannot.</summary>
@@ -366,6 +510,7 @@ namespace AgOpenGPS.Droid
                     link = new LinkSupervisor(ct => BluetoothLink.Connect(adapter, address, ct), settings.BuildNtripProfile);
                 }
                 link.FixUpdated += Guidance.OnFix;
+                link.SteerFeedbackReceived += fb => _steerFeedback = fb;
                 link.SentenceReceived += line =>
                 {
                     if (!Settings.ShowRawLog) return;
@@ -376,6 +521,7 @@ namespace AgOpenGPS.Droid
                 link.Start();
                 StartService();
                 StartAlerts();
+                StartSteerLoop();
 
                 if (settings.UseSimulator) return "Simulator: set speed with + / -, steer with < >, or press Auto";
                 return settings.NtripEnabled && settings.BuildNtripProfile() == null
@@ -394,6 +540,7 @@ namespace AgOpenGPS.Droid
                 Link = null;
             }
             StopAlerts(); // pressing Disconnect is not "connection lost"
+            StopSteerLoop();
             link?.Stop();
             Simulator = null;
             try { _context.StopService(new Intent(_context, typeof(GnssService))); }

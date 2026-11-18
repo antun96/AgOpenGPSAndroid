@@ -25,6 +25,20 @@
 - **◀ 12 cm**: you are 12 cm right of the line, steer left. Green under 5 cm, yellow under 15 cm, red above.
 - **Map**: pinch or **+ / −** to zoom, drag to look around. **Follow** returns to the tractor, **Field** shows the whole field.
 
+## AutoSteer
+
+With an **ESP32 steer module** (a motor on the steering wheel and a wheel angle sensor) the tablet steers along the line.
+
+1. **Settings → AutoSteer**: tick *A steer module is fitted*. Connect; the live line shows the wheel angle from the module.
+2. Put the wheels straight and press **Wheels are straight now: set sensor zero**. Turn full left and right and check the angle sign: right must be positive, else tick *Invert the wheel angle sensor*.
+3. On the driving screen press **AutoSteer: OFF** near the line. It turns blue (**AutoSteer: ON**) with a short beep.
+
+AutoSteer switches itself off, with a long tone and a message, when: you turn the steering wheel (or the steer switch goes off), the connection or the steer module is lost, RTK Fix is lost for more than 3 s, you are too far from the line, too fast, or too slow for 10 s. Press the button again to switch it off yourself.
+
+- **Proportional gain**: more = the motor reacts harder. If the wheel shakes, lower it; if it is lazy, raise it.
+- **Minimum PWM**: just enough that the motor moves at all. **Maximum PWM**: limits the motor speed.
+- Always keep your hands near the wheel and watch the field ahead.
+
 ## Fields
 
 - **Field: ...** (right panel) opens the list: **New field**, open, rename, delete.

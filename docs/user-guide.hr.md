@@ -25,6 +25,20 @@
 - **◀ 12 cm**: 12 cm ste desno od linije, upravljajte lijevo. Zeleno ispod 5 cm, žuto ispod 15 cm, crveno iznad.
 - **Karta**: dva prsta ili **+ / −** za povećanje, povlačenje za pomicanje. **Prati** vraća na traktor, **Parcela** prikazuje cijelu parcelu.
 
+## AutoSteer
+
+S **ESP32 modulom upravljanja** (motor na volanu i senzor kuta kotača) tablet sam upravlja po liniji.
+
+1. **Postavke → AutoSteer**: označite *Ugrađen je modul upravljanja*. Spojite se; redak ispod pokazuje kut kotača iz modula.
+2. Postavite kotače ravno i pritisnite **Kotači su sada ravno: postavi nulu senzora**. Okrenite do kraja lijevo i desno i provjerite predznak: desno mora biti pozitivno, inače označite *Obrni senzor kuta kotača*.
+3. Na zaslonu za vožnju blizu linije pritisnite **AutoSteer: ISKLJ.** Gumb postaje plav (**AutoSteer: UKLJ.**) uz kratki zvuk.
+
+AutoSteer se sam isključuje, uz dugi ton i poruku, kad: okrenete volan (ili se isključi prekidač upravljanja), se izgubi veza ili modul upravljanja, RTK Fix nestane dulje od 3 s, ste predaleko od linije, prebrzo vozite ili 10 s presporo. Ponovnim pritiskom gumba sami ga isključujete.
+
+- **Proporcionalno pojačanje**: više = motor jače reagira. Ako volan drhti, smanjite; ako je trom, povećajte.
+- **Najmanji PWM**: tek toliko da se motor uopće pokrene. **Najveći PWM**: ograničava brzinu motora.
+- Uvijek držite ruke blizu volana i pratite što je ispred.
+
 ## Parcele
 
 - **Parcela: ...** (desna ploča) otvara popis: **Nova parcela**, otvori, preimenuj, obriši.

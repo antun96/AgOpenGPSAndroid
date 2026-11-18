@@ -43,6 +43,13 @@ namespace AgOpenGPS.Droid
             catch (Java.Lang.RuntimeException) { }
         }
 
+        /// <summary>AutoSteer on: a short high beep. Off by itself: a long low warble, so it is not missed.</summary>
+        public void PlaySteer(bool on)
+        {
+            try { Tones?.StartTone(on ? Tone.PropAck : Tone.CdmaHighL, on ? 250 : 1500); }
+            catch (Java.Lang.RuntimeException) { }
+        }
+
         /// <summary>The message shown with an alert (English; translated where shown).</summary>
         public static string Message(AlertKind kind)
         {

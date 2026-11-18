@@ -49,6 +49,62 @@ namespace AgOpenGPS.Droid
             MapMaxZoom = _prefs.GetString("map.maxZoom", AgOpenGPS.Mobile.Core.Guidance.MapTiles.MaxZoom.ToString(Inv));
             MapAttribution = _prefs.GetString("map.attribution", AgOpenGPS.Mobile.Core.Guidance.MapTiles.DefaultAttribution);
             ShowCoverage = _prefs.GetBoolean("coverage.show", true);
+            SteerEnabled = _prefs.GetBoolean("steer.enabled", false);
+            SteerGain = _prefs.GetString("steer.gain", "50");
+            SteerHighPwm = _prefs.GetString("steer.highPwm", "180");
+            SteerMinPwm = _prefs.GetString("steer.minPwm", "25");
+            SteerCountsPerDegree = _prefs.GetString("steer.counts", "100");
+            SteerWasOffset = _prefs.GetString("steer.wasOffset", "0");
+            SteerAckermann = _prefs.GetString("steer.ackermann", "100");
+            SteerMaxAngle = _prefs.GetString("steer.maxAngle", "35");
+            SteerMinSpeed = _prefs.GetString("steer.minSpeed", "1");
+            SteerMaxSpeed = _prefs.GetString("steer.maxSpeed", "15");
+            SteerMaxOffLine = _prefs.GetString("steer.maxOffLine", "2");
+            SteerInvertWas = _prefs.GetBoolean("steer.invertWas", false);
+            SteerInvertMotor = _prefs.GetBoolean("steer.invertMotor", false);
+            SteerCytron = _prefs.GetBoolean("steer.cytron", true);
+            SteerRequireRtk = _prefs.GetBoolean("steer.requireRtk", true);
+            SteerSwitch = _prefs.GetString("steer.switch", "none");
+            SteerSwitchEngages = _prefs.GetBoolean("steer.switchEngages", false);
+        }
+
+        /// <summary>A steer module is fitted: send it the steer messages and show the AutoSteer button.</summary>
+        public bool SteerEnabled;
+        /// <summary>Steer settings as typed (see SteerSettings).</summary>
+        public string SteerGain, SteerHighPwm, SteerMinPwm, SteerCountsPerDegree, SteerWasOffset, SteerAckermann,
+            SteerMaxAngle, SteerMinSpeed, SteerMaxSpeed, SteerMaxOffLine;
+        public bool SteerInvertWas, SteerInvertMotor, SteerCytron, SteerRequireRtk, SteerSwitchEngages;
+        /// <summary>"none", "switch" or "button".</summary>
+        public string SteerSwitch;
+
+        public AgOpenGPS.Mobile.Core.SteerSettings BuildSteerSettings()
+        {
+            int Int(string text, int fallback, int min, int max)
+            {
+                string t = (text ?? "").Trim();
+                return int.TryParse(t, NumberStyles.Integer, Inv, out int v) && v >= min && v <= max ? v : fallback;
+            }
+            return new AgOpenGPS.Mobile.Core.SteerSettings
+            {
+                Wheelbase = WheelbaseMeters,
+                ProportionalGain = Int(SteerGain, 50, 1, 255),
+                HighPwm = Int(SteerHighPwm, 180, 10, 255),
+                MinPwm = Int(SteerMinPwm, 25, 0, 255),
+                CountsPerDegree = Int(SteerCountsPerDegree, 100, 1, 255),
+                WasOffset = Int(SteerWasOffset, 0, short.MinValue, short.MaxValue),
+                Ackermann = Int(SteerAckermann, 100, 1, 255),
+                MaxSteerAngle = System.Math.Max(5, System.Math.Min(45, ParseMeters(SteerMaxAngle, 35))),
+                MinSpeedKmh = ParseMeters(SteerMinSpeed, 1),
+                MaxSpeedKmh = System.Math.Max(1, ParseMeters(SteerMaxSpeed, 15)),
+                MaxOffLineMeters = System.Math.Max(0.2, ParseMeters(SteerMaxOffLine, 2)),
+                InvertWas = SteerInvertWas,
+                InvertMotor = SteerInvertMotor,
+                CytronDriver = SteerCytron,
+                RequireRtkFix = SteerRequireRtk,
+                SwitchType = SteerSwitch == "switch" ? AgOpenGPS.Mobile.Core.SteerSwitchType.Switch
+                    : SteerSwitch == "button" ? AgOpenGPS.Mobile.Core.SteerSwitchType.Button : AgOpenGPS.Mobile.Core.SteerSwitchType.None,
+                SwitchEngages = SteerSwitchEngages,
+            };
         }
 
         public string DeviceAddress;
@@ -221,6 +277,23 @@ namespace AgOpenGPS.Droid
                 .PutString("map.url", MapUrl)
                 .PutString("map.attribution", MapAttribution)
                 .PutString("map.maxZoom", MapMaxZoom)
+                .PutBoolean("steer.enabled", SteerEnabled)
+                .PutString("steer.gain", SteerGain)
+                .PutString("steer.highPwm", SteerHighPwm)
+                .PutString("steer.minPwm", SteerMinPwm)
+                .PutString("steer.counts", SteerCountsPerDegree)
+                .PutString("steer.wasOffset", SteerWasOffset)
+                .PutString("steer.ackermann", SteerAckermann)
+                .PutString("steer.maxAngle", SteerMaxAngle)
+                .PutString("steer.minSpeed", SteerMinSpeed)
+                .PutString("steer.maxSpeed", SteerMaxSpeed)
+                .PutString("steer.maxOffLine", SteerMaxOffLine)
+                .PutBoolean("steer.invertWas", SteerInvertWas)
+                .PutBoolean("steer.invertMotor", SteerInvertMotor)
+                .PutBoolean("steer.cytron", SteerCytron)
+                .PutBoolean("steer.requireRtk", SteerRequireRtk)
+                .PutString("steer.switch", SteerSwitch)
+                .PutBoolean("steer.switchEngages", SteerSwitchEngages)
                 .Apply();
         }
 

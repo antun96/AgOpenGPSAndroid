@@ -51,6 +51,12 @@ namespace AgOpenGPS.Droid
         private System.Threading.CancellationTokenSource _prefetch;
         private EditText _width, _overlap, _host, _port, _mount, _user, _password, _gga;
         private TextView _workingWidth, _status, _raw;
+        private CheckBox _steerEnabled, _steerInvertWas, _steerInvertMotor, _steerCytron, _steerRequireRtk, _steerSwitchEngages;
+        private EditText _steerGain, _steerHighPwm, _steerMinPwm, _steerCounts, _steerWasOffset, _steerAckermann,
+            _steerMaxAngle, _steerMinSpeed, _steerMaxSpeed, _steerMaxOffLine;
+        private Spinner _steerSwitch;
+        private TextView _steerLive;
+        private static readonly string[] SteerSwitchCodes = { "none", "switch", "button" };
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -117,6 +123,24 @@ namespace AgOpenGPS.Droid
             s.AlertOffLineCm = _alertOffLine.Text.Trim();
             s.HeadlandWidth = _headlandWidth.Text.Trim();
             s.AutoHeadland = _autoHeadland.Checked;
+            s.SteerEnabled = _steerEnabled.Checked;
+            s.SteerGain = _steerGain.Text.Trim();
+            s.SteerHighPwm = _steerHighPwm.Text.Trim();
+            s.SteerMinPwm = _steerMinPwm.Text.Trim();
+            s.SteerCountsPerDegree = _steerCounts.Text.Trim();
+            s.SteerWasOffset = _steerWasOffset.Text.Trim();
+            s.SteerAckermann = _steerAckermann.Text.Trim();
+            s.SteerMaxAngle = _steerMaxAngle.Text.Trim();
+            s.SteerMinSpeed = _steerMinSpeed.Text.Trim();
+            s.SteerMaxSpeed = _steerMaxSpeed.Text.Trim();
+            s.SteerMaxOffLine = _steerMaxOffLine.Text.Trim();
+            s.SteerInvertWas = _steerInvertWas.Checked;
+            s.SteerInvertMotor = _steerInvertMotor.Checked;
+            s.SteerCytron = _steerCytron.Checked;
+            s.SteerRequireRtk = _steerRequireRtk.Checked;
+            s.SteerSwitchEngages = _steerSwitchEngages.Checked;
+            int sw = _steerSwitch.SelectedItemPosition;
+            s.SteerSwitch = sw >= 0 && sw < SteerSwitchCodes.Length ? SteerSwitchCodes[sw] : "none";
             s.DayColours = _colours.SelectedItemPosition == 1;
             if (s.RecordCoverage && !_recordCoverage.Checked) AppState.SetWorking(false); // switched off: stop and save
             s.RecordCoverage = _recordCoverage.Checked;
@@ -177,6 +201,23 @@ namespace AgOpenGPS.Droid
             _alertOffLine.Text = s.AlertOffLineCm;
             _headlandWidth.Text = s.HeadlandWidth;
             _autoHeadland.Checked = s.AutoHeadland;
+            _steerEnabled.Checked = s.SteerEnabled;
+            _steerGain.Text = s.SteerGain;
+            _steerHighPwm.Text = s.SteerHighPwm;
+            _steerMinPwm.Text = s.SteerMinPwm;
+            _steerCounts.Text = s.SteerCountsPerDegree;
+            _steerWasOffset.Text = s.SteerWasOffset;
+            _steerAckermann.Text = s.SteerAckermann;
+            _steerMaxAngle.Text = s.SteerMaxAngle;
+            _steerMinSpeed.Text = s.SteerMinSpeed;
+            _steerMaxSpeed.Text = s.SteerMaxSpeed;
+            _steerMaxOffLine.Text = s.SteerMaxOffLine;
+            _steerInvertWas.Checked = s.SteerInvertWas;
+            _steerInvertMotor.Checked = s.SteerInvertMotor;
+            _steerCytron.Checked = s.SteerCytron;
+            _steerRequireRtk.Checked = s.SteerRequireRtk;
+            _steerSwitchEngages.Checked = s.SteerSwitchEngages;
+            _steerSwitch.SetSelection(System.Math.Max(0, System.Array.IndexOf(SteerSwitchCodes, s.SteerSwitch)));
             Task.Run(() =>
             {
                 long bytes = AppState.Map.DiskBytes();
@@ -233,6 +274,73 @@ namespace AgOpenGPS.Droid
             return CheckSelfPermission(global::Android.Manifest.Permission.BluetoothConnect) == Permission.Granted;
         }
 
+        // ---------------------------------------------------------------- AutoSteer
+
+        private void BuildSteerSection(LinearLayout right)
+        {
+            InputTypes num = InputTypes.ClassNumber;
+            InputTypes dec = InputTypes.ClassNumber | InputTypes.NumberFlagDecimal;
+            right.AddView(Ui.Heading(this, Tr.T("AutoSteer")));
+            _steerEnabled = new CheckBox(this) { Text = Tr.T("A steer module is fitted (show the AutoSteer button)") };
+            right.AddView(_steerEnabled);
+            right.AddView(Ui.Hint(this, Tr.T("The ESP32 steer module turns the steering wheel with a motor to the angle the tablet asks for. Keep your hands near the wheel: turning it switches AutoSteer off.")));
+            _steerLive = Ui.Hint(this, "");
+            right.AddView(_steerLive);
+            right.AddView(Ui.Button(this, Tr.T("Wheels are straight now: set sensor zero"), ZeroWheelAngle, 48));
+
+            _steerMaxOffLine = Ui.Field(this, right, Tr.T("Switch off further than this from the line (m)"), dec);
+            _steerMinSpeed = Ui.Field(this, right, Tr.T("Minimum steering speed (km/h)"), dec);
+            _steerMaxSpeed = Ui.Field(this, right, Tr.T("Maximum steering speed (km/h)"), dec);
+            _steerMaxAngle = Ui.Field(this, right, Tr.T("Largest wheel angle (degrees)"), dec);
+            _steerRequireRtk = new CheckBox(this) { Text = Tr.T("Steer only with RTK fix") };
+            right.AddView(_steerRequireRtk);
+
+            right.AddView(Ui.Hint(this, Tr.T("Motor and sensor (sent to the module, same meaning as in AgOpenGPS):")));
+            _steerGain = Ui.Field(this, right, Tr.T("Proportional gain"), num);
+            _steerHighPwm = Ui.Field(this, right, Tr.T("Maximum PWM (0-255)"), num);
+            _steerMinPwm = Ui.Field(this, right, Tr.T("Minimum PWM (0-255)"), num);
+            _steerCounts = Ui.Field(this, right, Tr.T("Sensor counts per degree"), num);
+            _steerWasOffset = Ui.Field(this, right, Tr.T("Sensor zero (counts)"), num | InputTypes.NumberFlagSigned);
+            _steerAckermann = Ui.Field(this, right, Tr.T("Ackermann (%, 100 = none)"), num);
+            _steerInvertWas = new CheckBox(this) { Text = Tr.T("Invert the wheel angle sensor") };
+            right.AddView(_steerInvertWas);
+            _steerInvertMotor = new CheckBox(this) { Text = Tr.T("Invert the motor direction") };
+            right.AddView(_steerInvertMotor);
+            _steerCytron = new CheckBox(this) { Text = Tr.T("Cytron motor driver (PWM + direction); off = IBT-2") };
+            right.AddView(_steerCytron);
+
+            right.AddView(Ui.Hint(this, Tr.T("Steer switch on the module")));
+            _steerSwitch = new Spinner(this);
+            var a = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleSpinnerItem,
+                new[] { Tr.T("None"), Tr.T("Switch"), Tr.T("Push button") });
+            a.SetDropDownViewResource(global::Android.Resource.Layout.SimpleSpinnerDropDownItem);
+            _steerSwitch.Adapter = a;
+            right.AddView(_steerSwitch);
+            _steerSwitchEngages = new CheckBox(this) { Text = Tr.T("The switch also switches AutoSteer on") };
+            right.AddView(_steerSwitchEngages);
+        }
+
+        private void ZeroWheelAngle()
+        {
+            SaveFields(); // the typed counts and zero first
+            if (AppState.ZeroWheelAngle())
+            {
+                _steerWasOffset.Text = AppState.Settings.SteerWasOffset;
+                Toast.MakeText(this, Tr.T("Sensor zero set"), ToastLength.Short).Show();
+            }
+            else Toast.MakeText(this, Tr.T("No steer module: connect first"), ToastLength.Long).Show();
+        }
+
+        private void RenderSteerLive()
+        {
+            SteerFeedback fb = AppState.SteerFeedback;
+            if (fb == null || (System.DateTime.UtcNow - fb.ReceivedUtc).TotalSeconds > 2)
+                _steerLive.Text = Tr.T("Steer module: no messages");
+            else
+                _steerLive.Text = Tr.F("Steer module: wheel {0:+0.0;-0.0;0.0}°, PWM {1}, steer switch {2}",
+                    fb.ActualAngle, fb.Pwm, fb.SteerSwitchHigh ? Tr.T("off") : Tr.T("on"));
+        }
+
         // ---------------------------------------------------------------- diagnostics, 2 Hz
 
         private void Refresh()
@@ -244,6 +352,7 @@ namespace AgOpenGPS.Droid
 
         private void RenderStatus()
         {
+            RenderSteerLive();
             LinkSnapshot snap = AppState.Link?.GetSnapshot();
             var sb = new StringBuilder();
             if (snap == null)
@@ -593,6 +702,8 @@ namespace AgOpenGPS.Droid
             _password = Ui.Field(this, right, Tr.T("Password"), InputTypes.ClassText | InputTypes.TextVariationPassword);
             _gga = Ui.Field(this, right, Tr.T("Send GGA every (s, 0 = once)"), InputTypes.ClassNumber);
             right.AddView(Ui.Hint(this, Tr.T("Changes apply when you leave this screen; a running connection reconnects.")));
+
+            BuildSteerSection(right);
 
             right.AddView(Ui.Heading(this, "Simulator"));
             _useSim = new CheckBox(this) { Text = Tr.T("Use the simulator instead of the receiver") };
