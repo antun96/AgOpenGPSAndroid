@@ -27,7 +27,7 @@
 
 ## AutoSteer
 
-S **ESP32 modulom upravljanja** (motor na volanu i senzor kuta kotača) tablet sam upravlja po liniji.
+S **ESP32 modulom upravljanja** (motor na volanu i senzor kuta kotača, firmware `AgOpenGPS_Steer`) tablet sam upravlja po liniji. Uparite **AgOpenGPS-Steer** i odaberite ga kao prijemnik: isti ESP32 prenosi i poziciju i korekcije.
 
 1. **Postavke → AutoSteer**: označite *Ugrađen je modul upravljanja*. Spojite se; redak ispod pokazuje kut kotača iz modula.
 2. Postavite kotače ravno i pritisnite **Kotači su sada ravno: postavi nulu senzora**. Okrenite do kraja lijevo i desno i provjerite predznak: desno mora biti pozitivno, inače označite *Obrni senzor kuta kotača*.

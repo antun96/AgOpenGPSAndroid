@@ -91,3 +91,83 @@ carries about 11 KB/s each way, which is enough. Use 460800 if you enable more m
   when the app sends corrections.
 - **Device not in the Android list**: it is not a classic ESP32, or it was flashed with the wrong
   board setting.
+
+# Steer module (AutoSteer)
+
+`AgOpenGPS_Steer/` is the same Bluetooth bridge **plus** an AutoSteer module for an electric motor
+on the steering wheel. One ESP32 does both, so the tractor needs only this board, the receiver,
+a wheel angle sensor and a motor driver. Use it instead of `AgOpenGPS_BT_Bridge`, not next to it.
+It shows up in Bluetooth as **AgOpenGPS-Steer**.
+
+```
+ tablet ◄──Bluetooth──► ESP32 ──UART──► receiver (NMEA out, RTCM in)
+                          │ ├──I2C──► ADS1115 ◄── wheel angle sensor (potentiometer)
+                          │ └──PWM+DIR──► Cytron driver ──► steering wheel motor
+                          └── steer switch, work switch, encoder / current sensor (optional)
+```
+
+The tablet works out the wheel angle (pure pursuit, like AgOpenGPS); the ESP32 turns the wheel to
+that angle and reports the angle it measures. The messages are AgOpenGPS PGN 254/253/252/251.
+
+## What you need
+
+- A classic ESP32 board (as above).
+- **Wheel angle sensor**: a potentiometer or a hall-effect angle sensor, fitted on the front
+  axle and linked to a steering knuckle, so it turns when the front wheels turn. Supplied with
+  3.3 V from the ESP32; its output is near 1.65 V with the wheels straight.
+- **ADS1115** analog-to-digital board (I2C, about 3 €). It measures the sensor voltage far more
+  precisely and quietly than the ESP32's own input. Without one, set `WAS_INPUT` to
+  `WAS_ESP32_ADC` and wire the sensor to GPIO34.
+- **Motor driver**: Cytron MD10C / MD13S (PWM + direction, recommended) or IBT-2 (BTS7960).
+- The **steering wheel motor** (12 V DC motor with gear and a wheel adapter, e.g. the motors
+  sold for AgOpenGPS wheel kits).
+- Strongly recommended: a way to notice the driver taking the wheel: an **encoder** on the motor
+  or a **current sensor** (ACS712) in the motor wire, or at least a **steer switch** in reach.
+
+## Wiring
+
+| From | To ESP32 |
+|---|---|
+| Receiver TX1 / RX1 | GPIO16 / GPIO17 (as for the bridge) |
+| ADS1115 SDA / SCL | GPIO21 / GPIO22 |
+| ADS1115 VDD / GND / ADDR | 3.3V / GND / GND |
+| Wheel angle sensor: + / signal / − | 3.3V / ADS1115 **A0** / GND |
+| Cytron PWM / DIR (IBT-2: RPWM / LPWM) | GPIO25 / GPIO26 |
+| Cytron GND | GND (common ground with the ESP32) |
+| Steer switch or button (to GND) | GPIO32 |
+| Work switch (to GND) | GPIO33 |
+| Encoder output (to GND, open collector) | GPIO27 |
+| Current sensor output (ACS712, 3.3 V supply) | GPIO35 |
+| Relay or clutch (optional) | GPIO4 (on while steering) |
+
+The motor gets its 12 V through the driver only, with a fuse, never through the ESP32. Keep the
+sensor wires away from the motor wires. Pins can be changed at the top of the sketch.
+
+## Flashing
+
+As for the bridge, but open `AgOpenGPS_Steer/AgOpenGPS_Steer.ino`. No extra libraries are needed.
+The Serial Monitor (115200) prints every 5 s the wheel angle, the wanted angle, the PWM and
+`STEERING`, `SENSOR FAULT` or `TAKE-OVER`.
+
+## First start (tractor standing, engine running, wheels free to turn)
+
+1. App: pair **AgOpenGPS-Steer**, pick it as the receiver, and in **Settings → AutoSteer** tick
+   *A steer module is fitted*. Connect. The AutoSteer section shows the live wheel angle.
+2. Wheels straight: press **Wheels are straight now: set sensor zero**.
+3. Turn the wheels right by hand: the angle must go **positive**. If it goes negative, tick
+   *Invert the wheel angle sensor*.
+4. **Sensor counts per degree**: turn to full lock, compare the shown angle with the real one
+   (measured, or from the tractor's data) and change the value until they match. More counts =
+   smaller angle.
+5. On a field with a line, at walking speed: switch AutoSteer on. If the wheel turns the wrong
+   way (away from the line, then stops at full lock), switch off and tick *Invert the motor direction*.
+6. Tune: **Minimum PWM** just enough that the motor moves, **Proportional gain** up until the
+   wheel follows briskly without shaking, **Maximum PWM** to limit the speed of the wheel.
+
+## Safety
+
+The motor stops at once when: no command came for 1 s (Bluetooth lost, tablet asleep), the app
+switches AutoSteer off, the speed is below the minimum, the sensor reading fails or sits at 0 V
+or 3.3 V (broken wire), the steer switch is off, or the encoder / current sensor sees the driver
+turning the wheel. After a take-over it only steers again once the app was switched off and on.
+Always stay in the seat with your hands near the wheel.

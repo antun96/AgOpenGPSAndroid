@@ -54,7 +54,9 @@ namespace AgOpenGPS.Droid
         private CheckBox _steerEnabled, _steerInvertWas, _steerInvertMotor, _steerCytron, _steerRequireRtk, _steerSwitchEngages;
         private EditText _steerGain, _steerHighPwm, _steerMinPwm, _steerCounts, _steerWasOffset, _steerAckermann,
             _steerMaxAngle, _steerMinSpeed, _steerMaxSpeed, _steerMaxOffLine, _uturnRadius;
-        private Spinner _steerSwitch;
+        private Spinner _steerSwitch, _steerTakeOver;
+        private EditText _steerTakeOverLimit;
+        private static readonly string[] TakeOverCodes = { "none", "encoder", "current" };
         private TextView _steerLive;
         private static readonly string[] SteerSwitchCodes = { "none", "switch", "button" };
 
@@ -140,6 +142,9 @@ namespace AgOpenGPS.Droid
             s.SteerRequireRtk = _steerRequireRtk.Checked;
             s.SteerSwitchEngages = _steerSwitchEngages.Checked;
             s.UTurnRadius = _uturnRadius.Text.Trim();
+            int to = _steerTakeOver.SelectedItemPosition;
+            s.SteerTakeOver = to >= 0 && to < TakeOverCodes.Length ? TakeOverCodes[to] : "none";
+            s.SteerTakeOverLimit = _steerTakeOverLimit.Text.Trim();
             int sw = _steerSwitch.SelectedItemPosition;
             s.SteerSwitch = sw >= 0 && sw < SteerSwitchCodes.Length ? SteerSwitchCodes[sw] : "none";
             s.DayColours = _colours.SelectedItemPosition == 1;
@@ -219,6 +224,8 @@ namespace AgOpenGPS.Droid
             _steerRequireRtk.Checked = s.SteerRequireRtk;
             _steerSwitchEngages.Checked = s.SteerSwitchEngages;
             _uturnRadius.Text = s.UTurnRadius;
+            _steerTakeOver.SetSelection(System.Math.Max(0, System.Array.IndexOf(TakeOverCodes, s.SteerTakeOver)));
+            _steerTakeOverLimit.Text = s.SteerTakeOverLimit;
             _steerSwitch.SetSelection(System.Math.Max(0, System.Array.IndexOf(SteerSwitchCodes, s.SteerSwitch)));
             Task.Run(() =>
             {
@@ -322,6 +329,15 @@ namespace AgOpenGPS.Droid
             right.AddView(_steerSwitch);
             _steerSwitchEngages = new CheckBox(this) { Text = Tr.T("The switch also switches AutoSteer on") };
             right.AddView(_steerSwitchEngages);
+
+            right.AddView(Ui.Hint(this, Tr.T("Hand on the wheel: how the module notices you turning the wheel")));
+            _steerTakeOver = new Spinner(this);
+            var t = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleSpinnerItem,
+                new[] { Tr.T("Not fitted (steer switch or tablet only)"), Tr.T("Encoder pulses"), Tr.T("Motor current sensor") });
+            t.SetDropDownViewResource(global::Android.Resource.Layout.SimpleSpinnerDropDownItem);
+            _steerTakeOver.Adapter = t;
+            right.AddView(_steerTakeOver);
+            _steerTakeOverLimit = Ui.Field(this, right, Tr.T("Take-over limit (pulses, or current x10)"), num);
         }
 
         private void ZeroWheelAngle()

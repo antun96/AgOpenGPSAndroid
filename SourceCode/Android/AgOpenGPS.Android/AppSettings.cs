@@ -66,6 +66,8 @@ namespace AgOpenGPS.Droid
             SteerRequireRtk = _prefs.GetBoolean("steer.requireRtk", true);
             SteerSwitch = _prefs.GetString("steer.switch", "none");
             SteerSwitchEngages = _prefs.GetBoolean("steer.switchEngages", false);
+            SteerTakeOver = _prefs.GetString("steer.takeOver", "none");
+            SteerTakeOverLimit = _prefs.GetString("steer.takeOverLimit", "3");
             UTurnRadius = _prefs.GetString("uturn.radius", "6");
             int.TryParse(_prefs.GetString("uturn.pass", "1"), NumberStyles.Integer, Inv, out UTurnPass);
             UTurnPass = System.Math.Max(1, System.Math.Min(3, UTurnPass));
@@ -88,6 +90,8 @@ namespace AgOpenGPS.Droid
         public bool SteerInvertWas, SteerInvertMotor, SteerCytron, SteerRequireRtk, SteerSwitchEngages;
         /// <summary>"none", "switch" or "button".</summary>
         public string SteerSwitch;
+        /// <summary>How the module notices the driver turning the wheel: "none", "encoder" or "current".</summary>
+        public string SteerTakeOver, SteerTakeOverLimit;
 
         public AgOpenGPS.Mobile.Core.SteerSettings BuildSteerSettings()
         {
@@ -116,6 +120,9 @@ namespace AgOpenGPS.Droid
                 SwitchType = SteerSwitch == "switch" ? AgOpenGPS.Mobile.Core.SteerSwitchType.Switch
                     : SteerSwitch == "button" ? AgOpenGPS.Mobile.Core.SteerSwitchType.Button : AgOpenGPS.Mobile.Core.SteerSwitchType.None,
                 SwitchEngages = SteerSwitchEngages,
+                ShaftEncoder = SteerTakeOver == "encoder",
+                CurrentSensor = SteerTakeOver == "current",
+                MaxPulseCounts = Int(SteerTakeOverLimit, 3, 1, 255),
             };
         }
 
@@ -306,6 +313,8 @@ namespace AgOpenGPS.Droid
                 .PutBoolean("steer.requireRtk", SteerRequireRtk)
                 .PutString("steer.switch", SteerSwitch)
                 .PutBoolean("steer.switchEngages", SteerSwitchEngages)
+                .PutString("steer.takeOver", SteerTakeOver)
+                .PutString("steer.takeOverLimit", SteerTakeOverLimit)
                 .PutString("uturn.radius", UTurnRadius)
                 .PutString("uturn.pass", UTurnPass.ToString(Inv))
                 .PutBoolean("uturn.on", UTurnOn)

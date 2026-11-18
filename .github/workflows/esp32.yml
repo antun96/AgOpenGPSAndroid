@@ -35,6 +35,7 @@ jobs:
             version: ${{ matrix.core }}
         sketch-paths: |
           - SourceCode/ESP32/AgOpenGPS_BT_Bridge
+          - SourceCode/ESP32/AgOpenGPS_Steer
         enable-warnings-report: true
         cli-compile-flags: |
           - --warnings

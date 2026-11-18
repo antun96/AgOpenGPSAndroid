@@ -64,6 +64,11 @@ namespace AgOpenGPS.Droid
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
             // ---------------------------------------------------------------- AutoSteer
+            ["Hand on the wheel: how the module notices you turning the wheel"] = "Ruka na volanu: kako modul primjećuje da okrećete volan",
+            ["Not fitted (steer switch or tablet only)"] = "Nije ugrađeno (samo prekidač ili tablet)",
+            ["Encoder pulses"] = "Impulsi enkodera",
+            ["Motor current sensor"] = "Senzor struje motora",
+            ["Take-over limit (pulses, or current x10)"] = "Granica preuzimanja (impulsi ili struja x10)",
             ["U-turn: off"] = "Okret: isklj.",
             ["U-turn: right ▶"] = "Okret: desno ▶",
             ["◀ U-turn: left"] = "◀ Okret: lijevo",

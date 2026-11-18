@@ -27,7 +27,7 @@
 
 ## AutoSteer
 
-With an **ESP32 steer module** (a motor on the steering wheel and a wheel angle sensor) the tablet steers along the line.
+With an **ESP32 steer module** (a motor on the steering wheel and a wheel angle sensor, firmware `AgOpenGPS_Steer`) the tablet steers along the line. Pair **AgOpenGPS-Steer** and pick it as the receiver: the same ESP32 also passes the position and the corrections.
 
 1. **Settings → AutoSteer**: tick *A steer module is fitted*. Connect; the live line shows the wheel angle from the module.
 2. Put the wheels straight and press **Wheels are straight now: set sensor zero**. Turn full left and right and check the angle sign: right must be positive, else tick *Invert the wheel angle sensor*.
