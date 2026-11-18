@@ -65,10 +65,28 @@ namespace AgOpenGPS.Mobile.Core
             set { lock (_lock) _wheel = Math.Max(-MaxWheelAngle, Math.Min(MaxWheelAngle, value)); }
         }
 
+        /// <summary>The simulated steer module (answers the app's PGN 254 like an ESP32 steer module would).</summary>
+        public SimSteerModule SteerModule { get; } = new SimSteerModule();
+
+        /// <summary>
+        /// The driver turns the wheel by hand. While the steer module steers this counts as taking
+        /// over, as on a real tractor: the module stops and reports its steer switch off.
+        /// </summary>
+        public void DriverTurnsWheel(double angle)
+        {
+            if (SteerModule.IsSteering(DateTime.UtcNow)) SteerModule.Override();
+            WheelAngle = angle;
+        }
+
         /// <summary>Moves the tractor on by <paramref name="seconds"/>.</summary>
         public void Step(double seconds)
         {
-            if (AutoSteer)
+            DateTime now = DateTime.UtcNow;
+            if (SteerModule.IsSteering(now))
+            {
+                WheelAngle = SteerModule.Step(WheelAngle, seconds, now);
+            }
+            else if (AutoSteer)
             {
                 SteerResult target = SteerSource?.Invoke();
                 if (target != null) WheelAngle = Steering.PurePursuitWheelAngle(target.SteerDegrees, target.LookaheadMeters, Wheelbase);
@@ -114,10 +132,12 @@ namespace AgOpenGPS.Mobile.Core
         public SimulatorLink(GnssSimulator simulator, int hz = 10)
         {
             Input = new SimStream(simulator, hz);
+            Output = new ModuleInput(simulator.SteerModule);
         }
 
         public Stream Input { get; }
-        public Stream Output { get; } = Stream.Null; // corrections go nowhere
+        /// <summary>Corrections go nowhere; PGN frames go to the simulated steer module.</summary>
+        public Stream Output { get; }
 
         public void Dispose() => Input.Dispose();
 
@@ -145,7 +165,15 @@ namespace AgOpenGPS.Mobile.Core
                     if (_closed.IsSet) return 0;
                     _next = (wait > TimeSpan.Zero ? _next : DateTime.UtcNow).AddMilliseconds(_periodMs);
                     _sim.Step(_periodMs / 1000.0);
-                    _pending = Encoding.ASCII.GetBytes(_sim.Sentences(DateTime.UtcNow));
+                    byte[] nmea = Encoding.ASCII.GetBytes(_sim.Sentences(DateTime.UtcNow));
+                    byte[] steer = _sim.SteerModule.Feedback(_sim.WheelAngle);
+                    if (steer == null) _pending = nmea;
+                    else
+                    {
+                        _pending = new byte[nmea.Length + steer.Length];
+                        nmea.CopyTo(_pending, 0);
+                        steer.CopyTo(_pending, nmea.Length);
+                    }
                     _pos = 0;
                 }
                 int n = Math.Min(count, _pending.Length - _pos);
@@ -169,6 +197,110 @@ namespace AgOpenGPS.Mobile.Core
             public override long Seek(long o, SeekOrigin s) => throw new NotSupportedException();
             public override void SetLength(long v) => throw new NotSupportedException();
             public override void Write(byte[] b, int o, int c) => throw new NotSupportedException();
+        }
+
+        /// <summary>What the app writes to the link: PGN frames are picked out and given to the module.</summary>
+        private sealed class ModuleInput : Stream
+        {
+            private readonly GnssStreamDecoder _decoder = new GnssStreamDecoder();
+
+            public ModuleInput(SimSteerModule module)
+            {
+                _decoder.PgnReceived += f => module.Receive(f, DateTime.UtcNow);
+            }
+
+            public override void Write(byte[] b, int o, int c) => _decoder.Feed(b, o, c);
+            public override bool CanRead => false;
+            public override bool CanSeek => false;
+            public override bool CanWrite => true;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => 0; set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override int Read(byte[] b, int o, int c) => throw new NotSupportedException();
+            public override long Seek(long o, SeekOrigin s) => throw new NotSupportedException();
+            public override void SetLength(long v) => throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>
+    /// A simulated ESP32 steer module with an electric motor on the steering wheel: takes PGN 254
+    /// (and 252 settings), turns the wheel toward the wanted angle with the same motor control as
+    /// the firmware, and answers with PGN 253. It answers only once the app has talked to it, so it
+    /// stays silent when AutoSteer is not in use. Thread safe.
+    /// </summary>
+    public sealed class SimSteerModule
+    {
+        /// <summary>Wheel speed at full PWM, degrees per second.</summary>
+        public const double FullPwmDegPerSec = 40;
+        /// <summary>Without a PGN 254 for this long the module stops steering, like the firmware's watchdog.</summary>
+        public const double WatchdogSeconds = 1.0;
+
+        private readonly object _lock = new object();
+        private readonly SteerSettings _settings = new SteerSettings();
+        private DateTime _lastCommand = DateTime.MinValue;
+        private bool _heard, _on, _override;
+        private double _setpoint, _speed;
+        private int _pwm;
+
+        public void Receive(byte[] frame, DateTime utc)
+        {
+            lock (_lock)
+            {
+                if (SteerPgn.ParseAutoSteerData(frame, out double speed, out bool on, out double angle))
+                {
+                    _heard = true;
+                    _lastCommand = utc;
+                    _on = on;
+                    _setpoint = angle;
+                    _speed = speed;
+                    if (!on) _override = false; // the driver took over; cleared once the app switched off
+                }
+                else if (SteerPgn.ParseSettings(frame, _settings))
+                {
+                    _heard = true;
+                }
+            }
+        }
+
+        /// <summary>Driver took the wheel: stop and report the steer switch off.</summary>
+        public void Override()
+        {
+            lock (_lock) _override = true;
+        }
+
+        public bool IsSteering(DateTime utc)
+        {
+            lock (_lock)
+                return _on && !_override && (utc - _lastCommand).TotalSeconds < WatchdogSeconds && _speed >= 0.1;
+        }
+
+        /// <summary>The wheel angle after <paramref name="seconds"/> of motor drive.</summary>
+        public double Step(double wheel, double seconds, DateTime utc)
+        {
+            lock (_lock)
+            {
+                // Small steps, as the firmware runs its loop at 100 Hz.
+                int n = Math.Max(1, (int)Math.Ceiling(seconds / 0.01));
+                double dt = seconds / n;
+                for (int k = 0; k < n; k++)
+                {
+                    _pwm = SteerPid.Pwm(_setpoint, wheel, _settings);
+                    int drive = _settings.InvertMotor ? -_pwm : _pwm;
+                    wheel -= drive / 255.0 * FullPwmDegPerSec * dt;
+                }
+                return wheel;
+            }
+        }
+
+        /// <summary>PGN 253 for the current wheel angle, or null while the app has not talked to the module.</summary>
+        public byte[] Feedback(double wheel)
+        {
+            lock (_lock)
+            {
+                if (!_heard) return null;
+                bool steering = _on && !_override && (DateTime.UtcNow - _lastCommand).TotalSeconds < WatchdogSeconds;
+                return SteerPgn.BuildFeedback(wheel, false, _override, steering ? _pwm : 0);
+            }
         }
     }
 }

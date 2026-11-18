@@ -57,6 +57,8 @@ namespace AgOpenGPS.Mobile.Core
         public event Action<GnssFix> FixUpdated;
         public event Action<string> SentenceReceived;
         public event Action<LinkState, string> StateChanged;
+        /// <summary>PGN 253 from a steer module (reader thread).</summary>
+        public event Action<SteerFeedback> SteerFeedbackReceived;
 
         /// <param name="open">Opens the link; blocks until connected and throws on failure.</param>
         /// <param name="ntripProfile">Returns the caster to use, or null to leave corrections off. Read on every connect.</param>
@@ -97,6 +99,17 @@ namespace AgOpenGPS.Mobile.Core
             }
             try { loop?.Wait(TimeSpan.FromSeconds(3)); } catch (AggregateException) { }
             SetState(LinkState.Stopped, "");
+        }
+
+        /// <summary>
+        /// Sends a PGN frame to the device (steer module), kept clear of RTCM frames. False while
+        /// not connected or when the write failed.
+        /// </summary>
+        public bool SendFrame(byte[] frame)
+        {
+            GnssSession session;
+            lock (_lock) session = _state == LinkState.Connected ? _session : null;
+            return session != null && session.WriteFrame(frame);
         }
 
         public LinkSnapshot GetSnapshot()
@@ -149,13 +162,14 @@ namespace AgOpenGPS.Mobile.Core
             var session = new GnssSession(link.Input, link.Output);
             session.FixUpdated += f => FixUpdated?.Invoke(f);
             session.SentenceReceived += s => SentenceReceived?.Invoke(s);
+            session.SteerFeedbackReceived += f => SteerFeedbackReceived?.Invoke(f);
 
             CorrectionForwarder forwarder = null;
             NtripProfile profile = null;
             try { profile = _ntripProfile(); } catch (ArgumentException) { /* incomplete settings: run without */ }
             if (profile != null)
             {
-                forwarder = new CorrectionForwarder(profile, chunk => session.Write(chunk, 0, chunk.Length), session.GgaForCaster);
+                forwarder = new CorrectionForwarder(profile, chunk => session.WriteCorrections(chunk, 0, chunk.Length), session.GgaForCaster);
             }
 
             lock (_lock)
