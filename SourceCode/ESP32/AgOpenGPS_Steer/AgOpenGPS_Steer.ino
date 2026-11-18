@@ -286,7 +286,7 @@ static int16_t steeringPid() {
 
 // ================================================================= switches and take-over
 
-static void IRAM_ATTR onEncoderPulse() { encoderPulses++; }
+static void IRAM_ATTR onEncoderPulse() { encoderPulses = encoderPulses + 1; }
 
 /** Steer switch bit for PGN 253: true (high) = off. */
 static bool steerSwitchHigh() {
