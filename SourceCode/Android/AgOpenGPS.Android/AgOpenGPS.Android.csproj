@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <!-- Android 8.0: covers practically every tablet still in use. -->
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AgOpenGPS.Droid</RootNamespace>
+    <ApplicationId>org.agopengps.android</ApplicationId>
+    <ApplicationTitle>AgOpenGPS</ApplicationTitle>
+    <ApplicationVersion>18</ApplicationVersion>
+    <ApplicationDisplayVersion>0.14.0</ApplicationDisplayVersion>
+    <!-- One APK for ARM tablets (most) and x86_64 (Chromebooks, emulators). -->
+    <RuntimeIdentifiers>android-arm64;android-arm;android-x64</RuntimeIdentifiers>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgOpenGPS.Mobile.Core\AgOpenGPS.Mobile.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The user guide (docs/) is packed into the APK for the Help screen: one text for both. -->
+  <ItemGroup>
+    <AndroidAsset Include="..\..\..\docs\user-guide.en.md" Link="Assets\user-guide.en.md" />
+    <AndroidAsset Include="..\..\..\docs\user-guide.hr.md" Link="Assets\user-guide.hr.md" />
+  </ItemGroup>
+
+</Project>
