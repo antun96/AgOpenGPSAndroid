@@ -8,8 +8,9 @@ using AgOpenGPS.Mobile.Core.Guidance;
 namespace AgOpenGPS.Droid
 {
     /// <summary>
-    /// Top-down driving view, heading up: the vehicle sits low in the middle, the current pass
-    /// is bold, neighbouring passes thin, and a line being recorded is drawn in orange.
+    /// Driving view, heading up (or north up / turned by hand), flat or tilted to see far ahead:
+    /// the vehicle sits low in the middle, the current pass is bold, neighbouring passes thin, and
+    /// a line being recorded is drawn in orange.
     /// </summary>
     public sealed class GuidanceView : View
     {
@@ -84,7 +85,67 @@ namespace AgOpenGPS.Droid
         private bool _follow = true;
         private double _zoom = 1.0;                       // multiplies the default width of the view
         private double _camLat = double.NaN, _camLon;     // free camera centre
-        private double _camRotation;                      // free camera: direction shown as "up"
+        private double _camRotation;                      // direction shown as "up" when not heading up
+        // Kept across screen rebuilds (language or colour change): the driver's chosen view.
+        private static double _tilt;                      // 0 = flat; see MapPerspective
+        private static bool _rotationLocked;              // true: "up" is _camRotation also while following
+        private static double _lockedRotation;
+        /// <summary>Tilt steps of the 3D button, degrees.</summary>
+        public static readonly double[] TiltSteps = { 0, 40, 60 };
+        private MapPerspective _lastPersp;
+
+        /// <summary>Map tilt in degrees (0 = flat, top-down).</summary>
+        public double Tilt => _tilt;
+
+        /// <summary>Direction shown as "up" in the last frame, degrees true (0 = north up).</summary>
+        public double ShownRotation => _lastRotation;
+
+        /// <summary>The map is fixed with north up (not turning with the tractor).</summary>
+        public bool NorthUp => (!_follow || _rotationLocked) && Math.Abs(LocalPlane.AngleDiff(_follow ? _lockedRotation : _camRotation, 0)) < 0.5;
+
+        /// <summary>3D button: flat, tilted, far ahead, flat again.</summary>
+        public void CycleTilt()
+        {
+            int i = 0;
+            while (i < TiltSteps.Length && TiltSteps[i] <= _tilt + 0.5) i++;
+            _tilt = i < TiltSteps.Length ? TiltSteps[i] : 0;
+            Invalidate();
+        }
+
+        /// <summary>Compass: north up; tapped again while following, back to the driving direction up.</summary>
+        public void ToggleNorthUp()
+        {
+            if (!_follow) _camRotation = 0;               // a map moved by hand: just turn it north up
+            else if (NorthUp) _rotationLocked = false;    // following: back to heading up
+            else
+            {
+                _rotationLocked = true;
+                _lockedRotation = 0;
+            }
+            Invalidate();
+        }
+
+        /// <summary>Two-finger twist. While following heading up, the map stops turning with the tractor.</summary>
+        private void RotateBy(double degrees)
+        {
+            if (_follow)
+            {
+                if (!_rotationLocked)
+                {
+                    _rotationLocked = true;
+                    _lockedRotation = _lastRotation;
+                }
+                _lockedRotation = LocalPlane.Wrap360(_lockedRotation + degrees);
+            }
+            else _camRotation = LocalPlane.Wrap360(_camRotation + degrees);
+            Invalidate();
+        }
+
+        private void TiltBy(double degrees)
+        {
+            _tilt = Math.Max(0, Math.Min(MapPerspective.MaxTiltDegrees, _tilt + degrees));
+            Invalidate();
+        }
         private ScaleGestureDetector _pinch;
         private GestureDetector _gestures;
 
@@ -102,6 +163,7 @@ namespace AgOpenGPS.Droid
         {
             _follow = true;
             _zoom = 1.0;
+            _rotationLocked = false;
             Invalidate();
         }
 
@@ -161,22 +223,77 @@ namespace AgOpenGPS.Droid
             _gestures = new GestureDetector(context, new PanListener(this));
         }
 
+        private enum TwoFinger { Undecided, Rotate, Tilt, Zoom }
+        private TwoFinger _twoFinger;
+        private double _startAngle, _lastAngle, _startSpan;
+        private float _startMidY, _lastMidY;
+
         public override bool OnTouchEvent(MotionEvent e)
         {
             _pinch.OnTouchEvent(e);
-            if (!_pinch.IsInProgress) _gestures.OnTouchEvent(e);
+            if (e.PointerCount >= 2) TwoFingers(e);
+            else if (!_pinch.IsInProgress) _gestures.OnTouchEvent(e);
             return true;
         }
 
+        /// <summary>
+        /// Two fingers: twist to rotate the map, slide both up or down to tilt it, pinch to zoom.
+        /// The first clear movement decides, so a pinch does not also turn the map.
+        /// </summary>
+        private void TwoFingers(MotionEvent e)
+        {
+            float x0 = e.GetX(0), y0 = e.GetY(0), x1 = e.GetX(1), y1 = e.GetY(1);
+            double angle = Math.Atan2(y1 - y0, x1 - x0) * 180.0 / Math.PI;
+            double span = Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+            float midY = (y0 + y1) / 2;
+            MotionEventActions action = e.ActionMasked;
+            if (action == MotionEventActions.PointerDown)
+            {
+                _twoFinger = TwoFinger.Undecided;
+                _startAngle = _lastAngle = angle;
+                _startSpan = Math.Max(1, span);
+                _startMidY = _lastMidY = midY;
+                return;
+            }
+            if (action != MotionEventActions.Move) return;
+
+            if (_twoFinger == TwoFinger.Undecided)
+            {
+                double turned = Math.Abs(LocalPlane.AngleDiff(angle, _startAngle));
+                double stretched = Math.Abs(span / _startSpan - 1);
+                float slid = Math.Abs(midY - _startMidY);
+                if (turned > 10) _twoFinger = TwoFinger.Rotate;
+                else if (stretched > 0.15) _twoFinger = TwoFinger.Zoom;
+                else if (slid > 40 * _density && turned < 6 && stretched < 0.1) _twoFinger = TwoFinger.Tilt;
+                _lastAngle = angle;
+                _lastMidY = midY;
+                return;
+            }
+            if (_twoFinger == TwoFinger.Rotate) RotateBy(-LocalPlane.AngleDiff(angle, _lastAngle));
+            else if (_twoFinger == TwoFinger.Tilt) TiltBy((_lastMidY - midY) / _density * 0.25); // slide up = lean back
+            _lastAngle = angle;
+            _lastMidY = midY;
+        }
+
         /// <summary>Moves the map with the finger. Leaves "follow" and keeps the current rotation, so it holds still.</summary>
-        private void Pan(float dx, float dy)
+        private void Pan(float x, float y, float distanceX, float distanceY)
         {
             if (_lastPlane == null) return;
+            // On a tilted map a finger far up the screen moves a lot of ground: go through the perspective.
+            float dx = distanceX, dy = distanceY;
+            MapPerspective persp = _lastPersp;
+            if (persp != null && !persp.IsFlat
+                && persp.ToFlat(x, y, out double fx1, out double fy1) && persp.ToFlat(x + distanceX, y + distanceY, out double fx0, out double fy0))
+            {
+                dx = (float)(fx0 - fx1);
+                dy = (float)(fy0 - fy1);
+            }
             GeoPoint c = _lastCentre;
             if (_follow)
             {
                 _follow = false;
                 _camRotation = _lastRotation;
+                _rotationLocked = false;
             }
             else if (!double.IsNaN(_camLat))
             {
@@ -197,6 +314,7 @@ namespace AgOpenGPS.Droid
             public PinchListener(GuidanceView v) { _v = v; }
             public override bool OnScale(ScaleGestureDetector detector)
             {
+                if (_v._twoFinger == TwoFinger.Rotate || _v._twoFinger == TwoFinger.Tilt) return true;
                 _v.ZoomBy(detector.ScaleFactor);
                 return true;
             }
@@ -209,7 +327,7 @@ namespace AgOpenGPS.Droid
             public override bool OnDown(MotionEvent e) => true;
             public override bool OnScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY)
             {
-                _v.Pan(distanceX, distanceY);
+                _v.Pan(e2.GetX(), e2.GetY(), distanceX, distanceY);
                 return true;
             }
             public override bool OnDoubleTap(MotionEvent e)
@@ -243,17 +361,19 @@ namespace AgOpenGPS.Droid
             GeoPoint v;
             double heading;
             float cx = Width / 2f, cy;
+            // Tilted, the tractor sits lower, so the far view ahead gets the room.
+            float tiltShare = (float)(_tilt / MapPerspective.MaxTiltDegrees);
             if (_follow && s.Vehicle.HasValue)
             {
                 v = s.Vehicle.Value;
-                heading = vehicleHeading;
-                cy = Height * 0.68f;
+                heading = _rotationLocked ? _lockedRotation : vehicleHeading;
+                cy = Height * (0.68f + 0.14f * tiltShare);
             }
             else if (!_follow && !double.IsNaN(_camLat))
             {
                 v = s.DrawPlane.ToLocal(_camLat, _camLon);
                 heading = _camRotation;
-                cy = Height / 2f;
+                cy = Height * (0.5f + 0.25f * tiltShare);
             }
             else if (FitAll(s, out GeoPoint centre, out double meters))
             {
@@ -275,6 +395,18 @@ namespace AgOpenGPS.Droid
 
             double h = heading * Math.PI / 180.0;
             double sin = Math.Sin(h), cos = Math.Cos(h);
+
+            // The tilt is one matrix over the whole flat drawing; text on top is drawn after it.
+            var persp = new MapPerspective(_tilt, cx, cy, 1.5 * Math.Max(1, Height));
+            _lastPersp = persp;
+            GroundBounds(persp, v, sin, cos, scale, cx, cy, viewMeters, out double minN, out double maxN, out double minE, out double maxE);
+            canvas.Save();
+            if (!persp.IsFlat)
+            {
+                var m = new Matrix();
+                m.SetValues(persp.MatrixValues());
+                canvas.Concat(m);
+            }
 
             void ToScreen(GeoPoint p, out float x, out float y)
             {
@@ -303,8 +435,8 @@ namespace AgOpenGPS.Droid
             }
 
             // Back to front: satellite map, worked area, boundary, lines, tractor.
-            DrawMap(canvas, s, v, heading, scale, cx, cy);
-            DrawCoverage(canvas, s, v, heading, scale, cx, cy);
+            DrawMap(canvas, s, v, heading, scale, cx, cy, minN, maxN, minE, maxE);
+            DrawCoverage(canvas, s, v, heading, scale, cx, cy, minN, maxN, minE, maxE);
 
             DrawLine(s.Boundary, _boundary, closed: true);
             DrawLine(s.HeadlandLine, _headland, closed: true);
@@ -383,6 +515,22 @@ namespace AgOpenGPS.Droid
                 canvas.Restore();
             }
 
+            canvas.Restore(); // end of the tilted drawing
+
+            if (!persp.IsFlat)
+            {
+                // Haze towards the top: far away fades out instead of ending in a hard edge.
+                using (var haze = new Paint())
+                {
+                    int bg = Color.ParseColor(Palette.MapBackground).ToArgb() & 0x00FFFFFF;
+                    haze.SetShader(new LinearGradient(0, 0, 0, Height * 0.18f,
+                        new Color(bg | unchecked((int)0xFF000000)), new Color(bg), Shader.TileMode.Clamp));
+                    canvas.DrawRect(0, 0, Width, Height * 0.18f, haze);
+                }
+            }
+            if (Map != null && !string.IsNullOrEmpty(MapAttribution))
+                canvas.DrawText(MapAttribution, Width - 6 * _density, Height - 6 * _density, _attribution);
+
             if (s.ActiveLine == null && !s.Recording && !s.RecordingBoundary && s.Boundary.Count < 3)
                 canvas.DrawText(Tr.T("No line: press A, drive, press B"), Width / 2f, Height * 0.2f, _hint);
 
@@ -391,18 +539,46 @@ namespace AgOpenGPS.Droid
                 10 * _density, Height - 8 * _density, _scaleText);
         }
 
+        /// <summary>
+        /// The ground the screen shows (draw plane, metres), from its four corners. Tilted, the top
+        /// corners reach far ahead; that is limited to 30 view widths.
+        /// </summary>
+        private void GroundBounds(MapPerspective persp, GeoPoint v, double sin, double cos, float scale, float cx, float cy,
+            double viewMeters, out double minN, out double maxN, out double minE, out double maxE)
+        {
+            minN = minE = double.MaxValue;
+            maxN = maxE = double.MinValue;
+            double far = 30 * viewMeters * scale; // in flat pixels
+            foreach (var (sx, sy) in new[] { (0f, 0f), ((float)Width, 0f), (0f, (float)Height), ((float)Width, (float)Height) })
+            {
+                persp.ToFlat(sx, sy, out double fx, out double fy);
+                double dx = fx - cx, dy = cy - fy;
+                double len = Math.Sqrt(dx * dx + dy * dy);
+                if (len > far) { dx *= far / len; dy *= far / len; }
+                double right = dx / scale, forward = dy / scale;
+                double n = v.Northing - right * sin + forward * cos;
+                double e = v.Easting + right * cos + forward * sin;
+                minN = Math.Min(minN, n); maxN = Math.Max(maxN, n);
+                minE = Math.Min(minE, e); maxE = Math.Max(maxE, e);
+            }
+        }
+
         /// <summary>Satellite map tiles under everything else; tiles not loaded yet are simply left out.</summary>
-        private void DrawMap(Canvas canvas, GuidanceSnapshot s, GeoPoint v, double heading, float scale, float cx, float cy)
+        private void DrawMap(Canvas canvas, GuidanceSnapshot s, GeoPoint v, double heading, float scale, float cx, float cy,
+            double minN, double maxN, double minE, double maxE)
         {
             MapTileProvider map = Map;
             if (map == null || s.DrawPlane == null) return;
 
             s.DrawPlane.ToWgs84(v, out double lat, out double lon); // the camera centre
             int zoom = MapTiles.ZoomFor(1.0 / scale, lat, MapMaxZoom);
-            double radius = Math.Sqrt((double)Width * Width + (double)Height * Height) / scale * 0.75;
-            double dLat = radius / 111132.0, dLon = radius / (111320.0 * Math.Cos(lat * Math.PI / 180.0));
-            List<TileId> tiles = MapTiles.TilesFor(lat - dLat, lon - dLon, lat + dLat, lon + dLon, zoom);
-            if (tiles.Count > 120) return; // very far zoomed out: not worth it
+            s.DrawPlane.ToWgs84(new GeoPoint(minN, minE), out double sLat0, out double wLon0);
+            s.DrawPlane.ToWgs84(new GeoPoint(maxN, maxE), out double nLat0, out double eLon0);
+            List<TileId> tiles = MapTiles.TilesFor(sLat0, wLon0, nLat0, eLon0, zoom);
+            // Far ahead on a tilted map, or far zoomed out: coarser tiles, so the count stays sensible.
+            while (tiles.Count > 160 && zoom > MapTiles.MinZoom)
+                tiles = MapTiles.TilesFor(sLat0, wLon0, nLat0, eLon0, --zoom);
+            if (tiles.Count > 160) return;
 
             canvas.Save();
             canvas.Translate(cx, cy);
@@ -432,13 +608,11 @@ namespace AgOpenGPS.Droid
                 canvas.DrawBitmap(bmp, src, dst, _mapPaint);
             }
             canvas.Restore();
-
-            if (!string.IsNullOrEmpty(MapAttribution))
-                canvas.DrawText(MapAttribution, Width - 6 * _density, Height - 6 * _density, _attribution);
         }
 
         /// <summary>Worked ground: green, worked twice or more: red. Drawn under the lines.</summary>
-        private void DrawCoverage(Canvas canvas, GuidanceSnapshot s, GeoPoint v, double heading, float scale, float cx, float cy)
+        private void DrawCoverage(Canvas canvas, GuidanceSnapshot s, GeoPoint v, double heading, float scale, float cx, float cy,
+            double minN, double maxN, double minE, double maxE)
         {
             CoverageMap map = s.Coverage;
             if (!ShowCoverage || map == null || s.DrawPlane == null)
@@ -454,9 +628,8 @@ namespace AgOpenGPS.Droid
 
             // The map has its own plane; over a field the planes differ only by a shift.
             GeoPoint o = s.DrawPlane.ToLocal(map.Plane.OriginLatitude, map.Plane.OriginLongitude);
-            double radius = Math.Sqrt((double)Width * Width + (double)Height * Height) / scale;
             double vn = v.Northing - o.Northing, ve = v.Easting - o.Easting;
-            List<CoverageTileInfo> tiles = map.TilesIn(vn - radius, vn + radius, ve - radius, ve + radius);
+            List<CoverageTileInfo> tiles = map.TilesIn(minN - o.Northing, maxN - o.Northing, minE - o.Easting, maxE - o.Easting);
             if (_tileCache.Count > 600) ClearTileCache();
 
             canvas.Save();
