@@ -65,6 +65,8 @@ With *Work off in the headland, on again in the main part*, Work switches off wh
 
 A job starts with **Work: ON** in a field and records the date, start and end, working time, hectares worked, distance and average speed. Changing the field or disconnecting ends it. **Jobs...** (under the statistics) lists the jobs: **Export...** saves them as **CSV** (Excel) or **PDF** (for printing), **End job** closes the current one, tap a job to delete it.
 
+While Work is on, the app also records the **track**: where you drove, with times. **Export...** offers **PDF** with a map of each job (the field and the strip worked), **Track: KML** (opens in Google Earth) and **Track: GeoJSON** (QGIS and farm software). Deleting a job deletes its track.
+
 ## Sound alerts
 
 **Settings → Sound alerts**: field edge ahead, left the field, RTK Fix lost and back, corrections stopped, connection lost, off the line. Each sounds once per event, also with the tablet on silent. **Test sound** checks the volume.

@@ -336,18 +336,36 @@ namespace AgOpenGPS.Droid
             string day = DateTime.Now.ToString("yyyy-MM-dd", Inv);
             new AlertDialog.Builder(this)
                 .SetTitle(Tr.T("Export the job log"))
-                .SetItems(new[] { Tr.T("CSV (Excel)"), Tr.T("PDF (print)") }, (s, e) =>
+                .SetItems(new[] { Tr.T("CSV (Excel)"), Tr.T("PDF (print, with a map of each job)"), Tr.T("Track: KML (Google Earth)"), Tr.T("Track: GeoJSON (QGIS, farm software)") }, (s, e) =>
                 {
+                    JobLog log = AppState.Jobs;
                     if (e.Which == 0)
                     {
                         // UTF-8 with BOM so Excel shows č, ć, š, ž, đ correctly.
                         byte[] csv = new System.Text.UTF8Encoding(true).GetPreamble()
-                            .Concat(System.Text.Encoding.UTF8.GetBytes(JobLog.ToCsv(AppState.Jobs.Jobs, Tr.T))).ToArray();
+                            .Concat(System.Text.Encoding.UTF8.GetBytes(JobLog.ToCsv(log.Jobs, Tr.T))).ToArray();
                         FileSaver.Save(this, Tr.T("Job log") + " " + day + ".csv", "text/csv", csv, Tr.T("Job log saved"));
+                    }
+                    else if (e.Which == 1)
+                    {
+                        byte[] pdf = JobReport.Pdf(log.Jobs, j => log.Track(j.Id),
+                            j => AppState.Fields.Fields.FirstOrDefault(f => f.Id == j.FieldId)?.Boundary);
+                        FileSaver.Save(this, Tr.T("Job log") + " " + day + ".pdf", "application/pdf", pdf, Tr.T("Job log saved"));
                     }
                     else
                     {
-                        FileSaver.Save(this, Tr.T("Job log") + " " + day + ".pdf", "application/pdf", JobReport.Pdf(AppState.Jobs.Jobs), Tr.T("Job log saved"));
+                        List<JobTrack> tracks = log.Jobs.Select(j => new JobTrack { Job = j, Pieces = log.Track(j.Id) }).Where(t => t.HasTrack).ToList();
+                        if (tracks.Count == 0)
+                        {
+                            Toast_(Tr.T("No tracks yet: a track is recorded while Work is on"), true);
+                            return;
+                        }
+                        if (e.Which == 2)
+                            FileSaver.Save(this, Tr.T("Tracks") + " " + day + ".kml", "application/vnd.google-earth.kml+xml",
+                                System.Text.Encoding.UTF8.GetBytes(TrackExport.ToKml(tracks, Tr.T)), Tr.T("Tracks saved"));
+                        else
+                            FileSaver.Save(this, Tr.T("Tracks") + " " + day + ".geojson", "application/geo+json",
+                                System.Text.Encoding.UTF8.GetBytes(TrackExport.ToGeoJson(tracks)), Tr.T("Tracks saved"));
                     }
                 })
                 .Show();

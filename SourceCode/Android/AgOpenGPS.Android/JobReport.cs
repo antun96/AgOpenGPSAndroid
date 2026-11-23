@@ -2,18 +2,27 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System;
 using Android.Graphics;
 using Android.Graphics.Pdf;
+using Path = Android.Graphics.Path;
 using AgOpenGPS.Mobile.Core;
+using AgOpenGPS.Mobile.Core.Guidance;
 
 namespace AgOpenGPS.Droid
 {
-    /// <summary>The job log as a printable PDF (A4 landscape table), in the app's language.</summary>
+    /// <summary>
+    /// The job log as a printable PDF (A4 landscape), in the app's language: a table of all jobs,
+    /// then a page per job with a map of the field and the strip worked (from the job's track).
+    /// </summary>
     public static class JobReport
     {
         private const int PageW = 842, PageH = 595, Margin = 36, RowH = 18;
 
-        public static byte[] Pdf(IEnumerable<Job> jobsNewestFirst)
+        /// <param name="track">The job's track, or null to leave the map pages out.</param>
+        /// <param name="boundary">The job's field boundary (may be empty).</param>
+        public static byte[] Pdf(IEnumerable<Job> jobsNewestFirst, Func<Job, List<List<TrackSample>>> track = null,
+            Func<Job, List<TrackPoint>> boundary = null)
         {
             List<Job> jobs = jobsNewestFirst.OrderBy(j => j.StartUtc).ToList();
             var ci = CultureInfo.InvariantCulture;
@@ -76,11 +85,114 @@ namespace AgOpenGPS.Droid
                 c.DrawText(Tr.F("Total: {0} jobs, {1:0.00} ha, {2} h:mm", row, totalHa, JobLog.Duration(totalSec)), Margin, y + 4, bold);
                 doc.FinishPage(page);
 
+                if (track != null)
+                {
+                    foreach (Job j in jobs)
+                    {
+                        List<List<TrackSample>> pieces = track(j);
+                        if (pieces == null || pieces.Count == 0) continue;
+                        pageNo++;
+                        page = doc.StartPage(new PdfDocument.PageInfo.Builder(PageW, PageH, pageNo).Create());
+                        DrawJobMap(page.Canvas, j, pieces, boundary?.Invoke(j) ?? new List<TrackPoint>(), title, text, pageNo);
+                        doc.FinishPage(page);
+                    }
+                }
+
                 using (var ms = new MemoryStream())
                 {
                     doc.WriteTo(ms);
                     return ms.ToArray();
                 }
+            }
+        }
+
+        /// <summary>One job on one page: the field boundary and the strip worked, at the implement width, north up.</summary>
+        private static void DrawJobMap(Canvas c, Job j, List<List<TrackSample>> pieces, List<TrackPoint> boundary,
+            Paint title, Paint text, int pageNo)
+        {
+            var ci = CultureInfo.InvariantCulture;
+            System.DateTime s = j.StartUtc.ToLocalTime(), e = j.EndUtc.ToLocalTime();
+            float y = Margin + 18;
+            c.DrawText(s.ToString("yyyy-MM-dd", ci) + "   " + j.FieldName, Margin, y, title);
+            y += 16;
+            c.DrawText(s.ToString("HH:mm", ci) + " - " + e.ToString("HH:mm", ci) + "   " + TrackExport.Summary(j, Tr.T)
+                + "   " + Tr.F("Page {0}", pageNo), Margin, y, text);
+
+            // Everything on one local plane, fitted into the area below the heading.
+            TrackSample first = pieces[0][0];
+            var plane = new LocalPlane(first.Latitude, first.Longitude);
+            var track = pieces.Select(p => p.Select(q => plane.ToLocal(q.Latitude, q.Longitude)).ToList()).ToList();
+            var edge = boundary.Select(b => plane.ToLocal(b.Latitude, b.Longitude)).ToList();
+            var all = track.SelectMany(p => p).Concat(edge).ToList();
+            double minN = all.Min(p => p.Northing), maxN = all.Max(p => p.Northing);
+            double minE = all.Min(p => p.Easting), maxE = all.Max(p => p.Easting);
+            double half = System.Math.Max(1.0, j.ImplementWidth / 2);
+            minN -= half; maxN += half; minE -= half; maxE += half;
+
+            float left = Margin, top = y + 18, right = PageW - Margin, bottom = PageH - Margin - 14;
+            double scale = System.Math.Min((right - left) / System.Math.Max(1, maxE - minE), (bottom - top) / System.Math.Max(1, maxN - minN));
+            float ox = left + (float)((right - left - (maxE - minE) * scale) / 2), oy = top + (float)((bottom - top - (maxN - minN) * scale) / 2);
+            float X(GeoPoint p) => ox + (float)((p.Easting - minE) * scale);
+            float Y(GeoPoint p) => oy + (float)((maxN - p.Northing) * scale);
+
+            Path Line(List<GeoPoint> pts, bool closed)
+            {
+                var path = new Path();
+                for (int i = 0; i < pts.Count; i++)
+                {
+                    if (i == 0) path.MoveTo(X(pts[i]), Y(pts[i]));
+                    else path.LineTo(X(pts[i]), Y(pts[i]));
+                }
+                if (closed) path.Close();
+                return path;
+            }
+
+            if (edge.Count >= 3)
+            {
+                using (var fill = new Paint { Color = Color.Argb(255, 245, 245, 240), AntiAlias = true })
+                using (var stroke = new Paint { Color = Color.DarkGray, StrokeWidth = 1.5f, AntiAlias = true })
+                using (Path p = Line(edge, true))
+                {
+                    fill.SetStyle(Paint.Style.Fill);
+                    stroke.SetStyle(Paint.Style.Stroke);
+                    c.DrawPath(p, fill);
+                    c.DrawPath(p, stroke);
+                }
+            }
+
+            // The strip worked: the track drawn as wide as the implement.
+            using (var strip = new Paint { Color = Color.Argb(150, 76, 175, 80), StrokeWidth = (float)System.Math.Max(0.8, j.ImplementWidth * scale), AntiAlias = true })
+            using (var centre = new Paint { Color = Color.Argb(255, 27, 94, 32), StrokeWidth = 0.6f, AntiAlias = true })
+            {
+                strip.SetStyle(Paint.Style.Stroke);
+                strip.StrokeCap = Paint.Cap.Butt;
+                strip.StrokeJoin = Paint.Join.Round;
+                centre.SetStyle(Paint.Style.Stroke);
+                foreach (List<GeoPoint> piece in track)
+                    using (Path p = Line(piece, false))
+                    {
+                        c.DrawPath(p, strip);
+                        c.DrawPath(p, centre);
+                    }
+            }
+
+            // North arrow and a scale bar.
+            using (var ink = new Paint { Color = Color.Black, StrokeWidth = 1.2f, AntiAlias = true, TextSize = 10 })
+            {
+                float nx = right - 14, ny = top + 6;
+                c.DrawLine(nx, ny + 26, nx, ny, ink);
+                c.DrawLine(nx, ny, nx - 4, ny + 7, ink);
+                c.DrawLine(nx, ny, nx + 4, ny + 7, ink);
+                c.DrawText("N", nx - 3, ny + 38, ink);
+
+                double target = (right - left) / 5 / scale;              // about a fifth of the width, in metres
+                double bar = System.Math.Pow(10, System.Math.Floor(System.Math.Log10(System.Math.Max(1, target))));
+                if (bar * 5 <= target) bar *= 5; else if (bar * 2 <= target) bar *= 2;
+                float bx = left, by = PageH - Margin;
+                c.DrawLine(bx, by, bx + (float)(bar * scale), by, ink);
+                c.DrawLine(bx, by - 3, bx, by + 3, ink);
+                c.DrawLine(bx + (float)(bar * scale), by - 3, bx + (float)(bar * scale), by + 3, ink);
+                c.DrawText(bar >= 1000 ? (bar / 1000).ToString("0.#", ci) + " km" : bar.ToString("0", ci) + " m", bx + (float)(bar * scale) + 6, by + 4, ink);
             }
         }
 

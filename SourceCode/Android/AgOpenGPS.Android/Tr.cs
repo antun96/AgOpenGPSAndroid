@@ -63,6 +63,14 @@ namespace AgOpenGPS.Droid
 
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
+            // ---------------------------------------------------------------- tracks
+            ["PDF (print, with a map of each job)"] = "PDF (ispis, s kartom svakog posla)",
+            ["Track: KML (Google Earth)"] = "Trag: KML (Google Earth)",
+            ["Track: GeoJSON (QGIS, farm software)"] = "Trag: GeoJSON (QGIS, programi za gospodarstvo)",
+            ["No tracks yet: a track is recorded while Work is on"] = "Još nema tragova: trag se snima dok je Rad uključen",
+            ["Tracks"] = "Tragovi",
+            ["Tracks saved"] = "Tragovi spremljeni",
+            ["Working time {0}, {1:0.00} ha, {2:0.00} km, {3} km/h, implement {4:0.00} m"] = "Radno vrijeme {0}, {1:0.00} ha, {2:0.00} km, {3} km/h, priključak {4:0.00} m",
             // ---------------------------------------------------------------- driving screen
             ["Bluetooth permission is needed to talk to the receiver"] = "Za vezu s prijemnikom potrebno je Bluetooth dopuštenje",
             ["no boundary"] = "bez međe",
