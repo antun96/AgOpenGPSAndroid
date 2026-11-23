@@ -70,7 +70,8 @@ namespace AgOpenGPS.Droid
                     System.DateTime s = j.StartUtc.ToLocalTime(), e = j.EndUtc.ToLocalTime();
                     string[] cells =
                     {
-                        s.ToString("yyyy-MM-dd", ci), Fit(j.FieldName, 30), s.ToString("HH:mm", ci), e.ToString("HH:mm", ci),
+                        s.ToString("yyyy-MM-dd", ci), Fit(string.IsNullOrEmpty(j.WorkType) ? j.FieldName : j.FieldName + " · " + j.WorkType, 30),
+                        s.ToString("HH:mm", ci), e.ToString("HH:mm", ci),
                         JobLog.Duration(j.WorkingSeconds), j.Hectares.ToString("0.00", ci), (j.WorkingMeters / 1000).ToString("0.00", ci),
                         double.IsNaN(j.AverageSpeedKmh) ? "" : j.AverageSpeedKmh.ToString("0.0", ci), j.ImplementWidth.ToString("0.00", ci),
                     };
@@ -113,10 +114,21 @@ namespace AgOpenGPS.Droid
             var ci = CultureInfo.InvariantCulture;
             System.DateTime s = j.StartUtc.ToLocalTime(), e = j.EndUtc.ToLocalTime();
             float y = Margin + 18;
-            c.DrawText(s.ToString("yyyy-MM-dd", ci) + "   " + j.FieldName, Margin, y, title);
+            c.DrawText(s.ToString("yyyy-MM-dd", ci) + "   " + j.FieldName + (string.IsNullOrEmpty(j.WorkType) ? "" : "   " + j.WorkType), Margin, y, title);
             y += 16;
             c.DrawText(s.ToString("HH:mm", ci) + " - " + e.ToString("HH:mm", ci) + "   " + TrackExport.Summary(j, Tr.T)
                 + "   " + Tr.F("Page {0}", pageNo), Margin, y, text);
+            if (!string.IsNullOrEmpty(j.Note))
+            {
+                // The note, wrapped to the page width (at most three lines here).
+                int lines = 0;
+                foreach (string part in Wrap(j.Note, text, PageW - 2 * Margin))
+                {
+                    if (++lines > 3) break;
+                    y += 13;
+                    c.DrawText(part, Margin, y, text);
+                }
+            }
 
             // Everything on one local plane, fitted into the area below the heading.
             TrackPoint first = pieces[0].Points[0];
@@ -193,6 +205,25 @@ namespace AgOpenGPS.Droid
                 c.DrawLine(bx, by - 3, bx, by + 3, ink);
                 c.DrawLine(bx + (float)(bar * scale), by - 3, bx + (float)(bar * scale), by + 3, ink);
                 c.DrawText(bar >= 1000 ? (bar / 1000).ToString("0.#", ci) + " km" : bar.ToString("0", ci) + " m", bx + (float)(bar * scale) + 6, by + 4, ink);
+            }
+        }
+
+        private static IEnumerable<string> Wrap(string s, Paint paint, float width)
+        {
+            foreach (string para in s.Replace("\r", "").Split('\n'))
+            {
+                string line = "";
+                foreach (string word in para.Split(' '))
+                {
+                    string next = line.Length == 0 ? word : line + " " + word;
+                    if (line.Length > 0 && paint.MeasureText(next) > width)
+                    {
+                        yield return line;
+                        line = word;
+                    }
+                    else line = next;
+                }
+                yield return line;
             }
         }
 

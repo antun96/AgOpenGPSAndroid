@@ -33,6 +33,7 @@ namespace AgOpenGPS.Droid
         private Handler _ui;
         private int _builtLanguage, _builtPalette;
         private DateTime _shownAlertUtc;
+        private string _askedJobId; // the job whose work type was asked for (once per job)
         private bool _refreshing;
         private bool _autoConnectTried;
         private LineKind _kind = LineKind.Straight;
@@ -307,9 +308,11 @@ namespace AgOpenGPS.Droid
             {
                 Job j = jobs[i];
                 items[i] = Tr.F("{0}{1}  {2}   {3:0.00} ha   {4} h:mm   {5} km/h",
-                    current != null && j.Id == current.Id ? "▶ " : "", j.StartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", Inv), j.FieldName,
+                    current != null && j.Id == current.Id ? "▶ " : "", j.StartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", Inv),
+                    string.IsNullOrEmpty(j.WorkType) ? j.FieldName : j.FieldName + " · " + j.WorkType,
                     j.Hectares, JobLog.Duration(j.WorkingSeconds),
-                    double.IsNaN(j.AverageSpeedKmh) ? "-" : j.AverageSpeedKmh.ToString("0.0", Inv));
+                    double.IsNaN(j.AverageSpeedKmh) ? "-" : j.AverageSpeedKmh.ToString("0.0", Inv))
+                    + (string.IsNullOrEmpty(j.Note) ? "" : "\n" + Shorten(j.Note, 80));
             }
 
             var b = new AlertDialog.Builder(this)
@@ -317,11 +320,77 @@ namespace AgOpenGPS.Droid
                 .SetNegativeButton(Tr.T("Close"), (s, e) => { });
             if (jobs.Count > 0)
             {
-                b.SetItems(items, (s, e) => ConfirmDeleteJob(jobs[e.Which]));
+                b.SetItems(items, (s, e) => EditJob(jobs[e.Which]));
                 b.SetPositiveButton(Tr.T("Export..."), (s, e) => ChooseJobExport());
             }
             if (current != null) b.SetNeutralButton(Tr.T("End job"), (s, e) => AppState.Jobs.EndJob());
             b.Show();
+        }
+
+        private static string Shorten(string s, int max) => s.Length <= max ? s : s.Substring(0, max - 1) + "…";
+
+        /// <summary>The work types to offer: the common ones (translated), then the driver's own, newest first.</summary>
+        private static List<string> WorkTypeChoices()
+        {
+            List<string> list = JobLog.DefaultWorkTypes.Select(Tr.T).ToList();
+            list.AddRange(AppState.Jobs.UsedWorkTypes(list));
+            return list;
+        }
+
+        /// <summary>Once, just after a job started: what is being done? One tap, or Skip.</summary>
+        private void AskWorkType()
+        {
+            Job job = AppState.Jobs.Current;
+            if (job == null || job.Id == _askedJobId) return;
+            _askedJobId = job.Id;
+            if (!string.IsNullOrEmpty(job.WorkType) || (DateTime.UtcNow - job.StartUtc).TotalSeconds > 30) return;
+
+            List<string> choices = WorkTypeChoices();
+            var items = choices.Concat(new[] { Tr.T("Other...") }).ToArray();
+            new AlertDialog.Builder(this)
+                .SetTitle(Tr.F("What are you doing in {0}?", job.FieldName))
+                .SetItems(items, (s, e) =>
+                {
+                    if (e.Which < choices.Count) AppState.Jobs.SetDetails(job.Id, choices[e.Which], job.Note);
+                    else AskText(Tr.T("Work type"), "", text => AppState.Jobs.SetDetails(job.Id, text, job.Note));
+                })
+                .SetNegativeButton(Tr.T("Skip"), (s, e) => { })
+                .Show();
+        }
+
+        /// <summary>A job's work type and note, with Delete.</summary>
+        private void EditJob(Job job)
+        {
+            int pad = Ui.Dp(this, 20);
+            var box = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            box.SetPadding(pad, Ui.Dp(this, 8), pad, 0);
+            box.AddView(Ui.Hint(this, Tr.F("{0}   {1} - {2}   {3:0.00} ha", job.FieldName,
+                job.StartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", Inv), job.EndUtc.ToLocalTime().ToString("HH:mm", Inv), job.Hectares)));
+
+            box.AddView(Ui.Hint(this, Tr.T("Work type")));
+            var type = new AutoCompleteTextView(this) { Text = job.WorkType, Threshold = 0 };
+            type.SetSingleLine(true);
+            type.Adapter = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleDropDownItem1Line, WorkTypeChoices());
+            type.Click += (s, e) => type.ShowDropDown();
+            box.AddView(type);
+
+            box.AddView(Ui.Hint(this, Tr.T("Note (seed, rate, weather, problems...)")));
+            var note = new EditText(this) { Text = job.Note };
+            note.SetMinLines(3);
+            note.SetMaxLines(8);
+            note.InputType = global::Android.Text.InputTypes.ClassText | global::Android.Text.InputTypes.TextFlagMultiLine | global::Android.Text.InputTypes.TextFlagCapSentences;
+            note.Gravity = GravityFlags.Top | GravityFlags.Start;
+            box.AddView(note);
+
+            var scroll = new ScrollView(this);
+            scroll.AddView(box);
+            new AlertDialog.Builder(this)
+                .SetTitle(Tr.T("Job"))
+                .SetView(scroll)
+                .SetPositiveButton(Tr.T("Save"), (s, e) => AppState.Jobs.SetDetails(job.Id, type.Text, note.Text))
+                .SetNeutralButton(Tr.T("Delete"), (s, e) => ConfirmDeleteJob(job))
+                .SetNegativeButton(Tr.T("Cancel"), (s, e) => { })
+                .Show();
         }
 
         private void ConfirmDeleteJob(Job job)
@@ -627,6 +696,7 @@ namespace AgOpenGPS.Droid
                 _shownAlertUtc = AppState.LastAlertUtc;
                 if ((DateTime.UtcNow - _shownAlertUtc).TotalSeconds < 5) Toast_(AppState.LastAlert);
             }
+            AskWorkType();
             LinkSnapshot link = AppState.Link?.GetSnapshot();
             GuidanceSnapshot g = AppState.Guidance.GetSnapshot();
             AppSettings settings = AppState.Settings;

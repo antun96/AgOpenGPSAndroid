@@ -25,6 +25,10 @@ namespace AgOpenGPS.Mobile.Core
         /// <summary>Distance driven with Work on, metres.</summary>
         public double WorkingMeters { get; set; }
         public double ImplementWidth { get; set; }
+        /// <summary>What was done, e.g. "Sowing" (in the words the driver chose); empty if not given.</summary>
+        public string WorkType { get; set; } = "";
+        /// <summary>The driver's own note, e.g. "Wheat, 220 kg/ha, wet in the north corner".</summary>
+        public string Note { get; set; } = "";
 
         [JsonIgnore] public double Hectares => WorkedSquareMeters / 10000.0;
         /// <summary>Average speed while working, km/h; NaN before any working time.</summary>
@@ -200,6 +204,44 @@ namespace AgOpenGPS.Mobile.Core
             }
         }
 
+        /// <summary>Common work types offered first (English; translated where shown).</summary>
+        public static readonly string[] DefaultWorkTypes =
+            { "Ploughing", "Tilling", "Sowing", "Fertilising", "Spraying", "Mowing", "Harvesting" };
+
+        /// <summary>Sets what was done and the note of a job. False if there is no such job.</summary>
+        public bool SetDetails(string id, string workType, string note)
+        {
+            lock (_lock)
+            {
+                Job j = _data.Jobs.FirstOrDefault(x => x.Id == id);
+                if (j == null) return false;
+                j.WorkType = (workType ?? "").Trim();
+                j.Note = (note ?? "").Trim();
+                _dirty = true;
+                SaveLocked();
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Work types typed in earlier jobs, most recently used first, without repeats (ignoring
+        /// case) and without the <paramref name="known"/> ones (e.g. the default list, translated).
+        /// </summary>
+        public List<string> UsedWorkTypes(IEnumerable<string> known = null)
+        {
+            var seen = new HashSet<string>(known ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            var list = new List<string>();
+            lock (_lock)
+            {
+                foreach (Job j in _data.Jobs.OrderByDescending(x => x.StartUtc))
+                {
+                    string w = (j.WorkType ?? "").Trim();
+                    if (w.Length > 0 && seen.Add(w)) list.Add(w);
+                }
+            }
+            return list;
+        }
+
         public IReadOnlyList<Job> Jobs { get { lock (_lock) return _data.Jobs.OrderByDescending(j => j.StartUtc).ToList(); } }
         public Job Current { get { lock (_lock) return _current; } }
 
@@ -359,7 +401,7 @@ namespace AgOpenGPS.Mobile.Core
             var ci = CultureInfo.InvariantCulture;
             var sb = new StringBuilder();
             sb.Append(string.Join(";", new[] { "Date", "Field", "Start", "End", "Working time (h:mm)", "Worked (ha)",
-                "Distance (km)", "Average speed (km/h)", "Implement width (m)" }.Select(t))).Append("\r\n");
+                "Distance (km)", "Average speed (km/h)", "Implement width (m)", "Work type", "Note" }.Select(t))).Append("\r\n");
             foreach (Job j in jobs.OrderBy(j => j.StartUtc))
             {
                 DateTime s = j.StartUtc.ToLocalTime(), e = j.EndUtc.ToLocalTime();
@@ -371,7 +413,9 @@ namespace AgOpenGPS.Mobile.Core
                   .Append(j.Hectares.ToString("0.00", ci)).Append(';')
                   .Append((j.WorkingMeters / 1000).ToString("0.00", ci)).Append(';')
                   .Append(double.IsNaN(j.AverageSpeedKmh) ? "" : j.AverageSpeedKmh.ToString("0.0", ci)).Append(';')
-                  .Append(j.ImplementWidth.ToString("0.00", ci)).Append("\r\n");
+                  .Append(j.ImplementWidth.ToString("0.00", ci)).Append(';')
+                  .Append(Csv(j.WorkType)).Append(';')
+                  .Append(Csv(j.Note)).Append("\r\n");
             }
             return sb.ToString();
         }

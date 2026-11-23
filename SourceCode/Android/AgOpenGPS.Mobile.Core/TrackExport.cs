@@ -39,8 +39,9 @@ namespace AgOpenGPS.Mobile.Core
             {
                 Job j = jt.Job;
                 DateTime s = j.StartUtc.ToLocalTime(), e = j.EndUtc.ToLocalTime();
-                sb.Append("  <Folder>\n    <name>").Append(X(s.ToString("yyyy-MM-dd HH:mm", Ci) + "  " + j.FieldName)).Append("</name>\n");
-                sb.Append("    <description>").Append(X(Summary(j, t))).Append("</description>\n");
+                string what = string.IsNullOrEmpty(j.WorkType) ? "" : "  " + j.WorkType;
+                sb.Append("  <Folder>\n    <name>").Append(X(s.ToString("yyyy-MM-dd HH:mm", Ci) + "  " + j.FieldName + what)).Append("</name>\n");
+                sb.Append("    <description>").Append(X(Summary(j, t) + (string.IsNullOrEmpty(j.Note) ? "" : "\n" + j.Note))).Append("</description>\n");
                 sb.Append("    <TimeSpan><begin>").Append(Iso(j.StartUtc)).Append("</begin><end>").Append(Iso(j.EndUtc)).Append("</end></TimeSpan>\n");
                 int n = 0;
                 foreach (TrackPiece piece in jt.Pieces.Where(p => p.Points.Count >= 2))
@@ -78,6 +79,8 @@ namespace AgOpenGPS.Mobile.Core
                         w.WriteString("type", "Feature");
                         w.WriteStartObject("properties");
                         w.WriteString("field", j.FieldName ?? "");
+                        w.WriteString("workType", j.WorkType ?? "");
+                        w.WriteString("note", j.Note ?? "");
                         w.WriteString("start", Iso(j.StartUtc));
                         w.WriteString("end", Iso(j.EndUtc));
                         w.WriteNumber("workingHours", Math.Round(j.WorkingSeconds / 3600.0, 3));

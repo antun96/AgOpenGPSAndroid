@@ -63,6 +63,23 @@ namespace AgOpenGPS.Droid
 
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
+            // ---------------------------------------------------------------- job notes
+            ["Ploughing"] = "Oranje",
+            ["Tilling"] = "Tanjuranje",
+            ["Sowing"] = "Sjetva",
+            ["Fertilising"] = "Gnojidba",
+            ["Spraying"] = "Prskanje",
+            ["Mowing"] = "Košnja",
+            ["Harvesting"] = "Žetva",
+            ["Other..."] = "Drugo...",
+            ["What are you doing in {0}?"] = "Što radite na parceli {0}?",
+            ["Work type"] = "Vrsta rada",
+            ["Skip"] = "Preskoči",
+            ["Note (seed, rate, weather, problems...)"] = "Bilješka (sjeme, količina, vrijeme, problemi...)",
+            ["Job"] = "Posao",
+            ["Save"] = "Spremi",
+            ["{0}   {1} - {2}   {3:0.00} ha"] = "{0}   {1} - {2}   {3:0.00} ha",
+            ["Note"] = "Bilješka",
             // ---------------------------------------------------------------- tracks
             ["PDF (print, with a map of each job)"] = "PDF (ispis, s kartom svakog posla)",
             ["Track: KML (Google Earth)"] = "Trag: KML (Google Earth)",

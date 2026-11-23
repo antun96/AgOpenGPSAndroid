@@ -63,7 +63,9 @@ Uz *Rad se isključuje na uvrtinama i ponovno uključuje u glavnom dijelu*, Rad 
 
 ## Dnevnik poslova
 
-Posao počinje s **Rad: UKLJ.** na parceli i bilježi datum, početak i kraj, radno vrijeme, obrađene hektare, prijeđeni put i prosječnu brzinu. Promjena parcele ili odspajanje ga završava. **Poslovi...** (ispod statistike) prikazuje poslove: **Izvoz...** ih sprema kao **CSV** (Excel) ili **PDF** (za ispis), **Završi posao** zatvara trenutni, a dodirom posla brišete ga.
+Posao počinje s **Rad: UKLJ.** na parceli i bilježi datum, početak i kraj, radno vrijeme, obrađene hektare, prijeđeni put i prosječnu brzinu. Promjena parcele ili odspajanje ga završava. **Poslovi...** (ispod statistike) prikazuje poslove: **Izvoz...** ih sprema kao **CSV** (Excel) ili **PDF** (za ispis), **Završi posao** zatvara trenutni.
+
+Kad posao počne, aplikacija pita **što radite** (sjetva, prskanje...): dodirnite jedno, **Drugo...** za vlastiti unos ili **Preskoči**. Dodirom posla u **Poslovi...** mijenjate **vrstu rada**, pišete **bilješku** (sjeme, količina, vrijeme, problemi) ili ga **brišete**. Vrsta rada i bilješka nalaze se u svakom izvozu.
 
 Dok je Rad uključen, aplikacija snima i **trag**: kuda ste vozili, s vremenom početka i kraja svakog dijela između stanki. **Izvoz...** nudi **PDF** s kartom svakog posla (parcela i obrađeni pojas), **Trag: KML** (otvara se u Google Earthu) i **Trag: GeoJSON** (QGIS i programi za gospodarstvo). Brisanjem posla briše se i njegov trag.
 

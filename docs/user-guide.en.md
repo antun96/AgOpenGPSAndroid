@@ -63,7 +63,9 @@ With *Work off in the headland, on again in the main part*, Work switches off wh
 
 ## Job log
 
-A job starts with **Work: ON** in a field and records the date, start and end, working time, hectares worked, distance and average speed. Changing the field or disconnecting ends it. **Jobs...** (under the statistics) lists the jobs: **Export...** saves them as **CSV** (Excel) or **PDF** (for printing), **End job** closes the current one, tap a job to delete it.
+A job starts with **Work: ON** in a field and records the date, start and end, working time, hectares worked, distance and average speed. Changing the field or disconnecting ends it. **Jobs...** (under the statistics) lists the jobs: **Export...** saves them as **CSV** (Excel) or **PDF** (for printing), **End job** closes the current one.
+
+When a job starts, the app asks **what you are doing** (sowing, spraying...): tap one, **Other...** to type your own, or **Skip**. Tap a job in **Jobs...** to change the **work type**, write a **note** (seed, rate, weather, problems) or **Delete** it. Work type and note are in every export.
 
 While Work is on, the app also records the **track**: where you drove, with the start and end time of each stretch between pauses. **Export...** offers **PDF** with a map of each job (the field and the strip worked), **Track: KML** (opens in Google Earth) and **Track: GeoJSON** (QGIS and farm software). Deleting a job deletes its track.
 

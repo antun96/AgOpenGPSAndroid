@@ -199,5 +199,46 @@ namespace AgOpenGPS.Mobile.Core.Tests
             using JsonDocument doc = JsonDocument.Parse(TrackExport.ToGeoJson(jobs));
             Assert.That(doc.RootElement.GetProperty("features").GetArrayLength(), Is.EqualTo(0));
         }
-    }
+    
+        [Test]
+        public void SetDetails_SavesAndReloads_AndFeedsTheSuggestions()
+        {
+            JobLog log = NewLog();
+            Drive(log, 0, 20);
+            string id = log.Current.Id;
+            Assert.That(log.SetDetails(id, "  Sowing wheat ", "220 kg/ha; wet \"north\" corner"), Is.True);
+            Assert.That(log.SetDetails("nope", "x", "y"), Is.False);
+            log.EndJob();
+
+            JobLog again = NewLog();
+            Job j = again.Jobs.Single();
+            Assert.That(j.WorkType, Is.EqualTo("Sowing wheat"));
+            Assert.That(j.Note, Is.EqualTo("220 kg/ha; wet \"north\" corner"));
+
+            string csv = JobLog.ToCsv(again.Jobs);
+            Assert.That(csv.Split("\r\n")[0], Does.EndWith(";Work type;Note"));
+            Assert.That(csv, Does.Contain(";Sowing wheat;\"220 kg/ha; wet \"\"north\"\" corner\""), "quoted for Excel");
+
+            var tracks = new List<JobTrack> { new JobTrack { Job = j, Pieces = again.Track(j.Id) } };
+            Assert.That(XDocument.Parse(TrackExport.ToKml(tracks)).ToString(), Does.Contain("Sowing wheat"));
+            using JsonDocument doc = JsonDocument.Parse(TrackExport.ToGeoJson(tracks));
+            JsonElement props = doc.RootElement.GetProperty("features")[0].GetProperty("properties");
+            Assert.That(props.GetProperty("workType").GetString(), Is.EqualTo("Sowing wheat"));
+            Assert.That(props.GetProperty("note").GetString(), Does.Contain("north"));
+        }
+
+        [Test]
+        public void UsedWorkTypes_AreTheOwnOnes_NewestFirst_NoRepeats()
+        {
+            JobLog log = NewLog();
+            foreach (string w in new[] { "Rolling", "Sowing", "rolling", "Stone picking" })
+            {
+                Drive(log, 0, 5);
+                log.SetDetails(log.Current.Id, w, "");
+                log.EndJob();
+                _t = _t.AddMinutes(10);
+            }
+            Assert.That(log.UsedWorkTypes(JobLog.DefaultWorkTypes), Is.EqualTo(new[] { "Stone picking", "rolling" }));
+        }
+}
 }
