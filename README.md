@@ -9,9 +9,20 @@ removed. It is in this repository's git history, and maintained upstream at
 
 ## Status
 
-First version: connects to an RTK receiver or Raspberry Pi over **Bluetooth**, shows the fix and
-RTK status, and can run an NTRIP client and send the corrections back to the receiver over the same
-link. Guidance, mapping and section control are not ported yet.
+Working on the tablet: RTK receiver over **Bluetooth** (ESP32 or Raspberry Pi bridge), NTRIP
+corrections sent back over the same link, straight and curved guidance lines with passes and nudge,
+lightbar, fields with boundaries (driven or by corners) and headland, worked area and statistics,
+job log, satellite map (offline cache, tilt and rotate), simulator, English and Croatian.
+Not tested on a tractor yet.
+
+## Branches
+
+| Branch | What it is |
+|---|---|
+| `develop` | **Navigation only**: guidance, fields, headland, worked area, map. No steering hardware needed. |
+| `v2-autosteer` | **Navigation and AutoSteer**: everything in `develop`, plus steering with an ESP32 steer module (motor on the steering wheel) and automatic turns at the headland. |
+
+Changes to navigation go into both branches.
 
 ## Contents
 

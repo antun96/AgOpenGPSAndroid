@@ -24,6 +24,8 @@
 - **Lightbar** (top): the lit segments show which way and how much to steer. Only the centre lit = on course.
 - **◀ 12 cm**: you are 12 cm right of the line, steer left. Green under 5 cm, yellow under 15 cm, red above.
 - **Map**: pinch or **+ / −** to zoom, drag to look around. **Follow** returns to the tractor, **Field** shows the whole field.
+- **3D**: tilts the map so you see far ahead (press again for more, then **2D** for flat). Or slide two fingers up or down.
+- **Compass** (round button, red needle = north): tap for north up, tap again to turn with the tractor. Twisting two fingers turns the map by hand.
 
 ## Fields
 

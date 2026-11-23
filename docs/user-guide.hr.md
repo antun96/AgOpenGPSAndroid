@@ -24,6 +24,8 @@
 - **Svjetlosna traka** (gore): upaljena polja pokazuju na koju stranu i koliko upravljati. Upaljena samo sredina = na smjeru.
 - **◀ 12 cm**: 12 cm ste desno od linije, upravljajte lijevo. Zeleno ispod 5 cm, žuto ispod 15 cm, crveno iznad.
 - **Karta**: dva prsta ili **+ / −** za povećanje, povlačenje za pomicanje. **Prati** vraća na traktor, **Parcela** prikazuje cijelu parcelu.
+- **3D**: naginje kartu pa vidite daleko naprijed (ponovno za više, zatim **2D** za ravno). Ili povucite dva prsta gore ili dolje.
+- **Kompas** (okrugli gumb, crvena igla = sjever): dodir za sjever gore, ponovni dodir da se karta okreće s traktorom. Okretanjem dva prsta kartu okrećete rukom.
 
 ## Parcele
 

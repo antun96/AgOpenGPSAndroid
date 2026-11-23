@@ -41,7 +41,8 @@ namespace AgOpenGPS.Droid
         private TextView _fixBadge, _fixInfo, _xte, _lineInfo, _edge, _accuracy, _recordInfo, _stats;
         private LightbarView _lightbar;
         private LinearLayout _simPanel, _cornerRow;
-        private Button _followButton;
+        private Button _followButton, _tiltButton;
+        private CompassView _compass;
         private TextView _simSpeed;
         private Button _simAuto;
         private Button _connect, _work, _field, _boundary, _cancelBoundary, _straight, _curve, _a, _b, _cancel;
@@ -617,6 +618,10 @@ namespace AgOpenGPS.Droid
             _view.MapMaxZoom = settings.MapMaxZoomLevel;
             RenderSimulator();
 
+            // Compass and tilt button follow the map.
+            _compass.Show(_view.ShownRotation, _view.NorthUp);
+            _tiltButton.Text = _view.Tilt < 1 ? "3D" : _view.Tilt < GuidanceView.TiltSteps[GuidanceView.TiltSteps.Length - 1] - 1 ? "3D+" : "2D";
+
             // Tr.T("Follow") stands out while the map was moved by hand.
             bool following = _view.Following;
             _followButton.SetBackgroundColor(Color.ParseColor(following ? "#E0E0E0" : "#FB8C00"));
@@ -851,8 +856,12 @@ namespace AgOpenGPS.Droid
             overlay.AddView(_accuracy, ap);
             frame.AddView(overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent, GravityFlags.Top));
 
-            // Map controls, right edge: zoom, whole field, back to following the tractor.
+            // Map controls, right edge: compass, zoom, tilt, whole field, back to following the tractor.
             var mapButtons = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            mapButtons.SetGravity(GravityFlags.CenterHorizontal);
+            _compass = new CompassView(this);
+            _compass.Click += (s, e) => _view.ToggleNorthUp();
+            mapButtons.AddView(_compass, new LinearLayout.LayoutParams(Dp(56), Dp(56)) { BottomMargin = Dp(6) });
             Button MapButton(string text, Action onClick)
             {
                 Button b = Ui.Button(this, text, onClick, 52);
@@ -864,6 +873,7 @@ namespace AgOpenGPS.Droid
             }
             MapButton("+", () => _view.ZoomBy(1.5));
             MapButton("−", () => _view.ZoomBy(1 / 1.5));
+            _tiltButton = MapButton("3D", () => _view.CycleTilt());
             MapButton(Tr.T("Field"), () =>
             {
                 if (!_view.ShowWholeField()) Toast_(Tr.T("Open a field with a boundary, or select a line"));
