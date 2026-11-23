@@ -34,6 +34,12 @@ namespace AgOpenGPS.Mobile.Core.Guidance
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
         /// <summary>Closed outer boundary (the last point connects back to the first). Empty until recorded.</summary>
         public List<TrackPoint> Boundary { get; set; } = new List<TrackPoint>();
+        /// <summary>Crop this season, e.g. "Winter wheat"; empty if not given.</summary>
+        public string Crop { get; set; } = "";
+        /// <summary>Variety (cultivar) of the crop.</summary>
+        public string Variety { get; set; } = "";
+        /// <summary>The driver's notes on the field: soil, drainage, owner or lease...</summary>
+        public string Note { get; set; } = "";
 
         public bool HasBoundary => Boundary != null && Boundary.Count >= 3;
 
@@ -160,6 +166,20 @@ namespace AgOpenGPS.Mobile.Core.Guidance
                 Field f = _data.Fields.FirstOrDefault(x => x.Id == id);
                 if (f == null || string.IsNullOrWhiteSpace(name)) return;
                 f.Name = name.Trim();
+                Save();
+            }
+        }
+
+        /// <summary>Sets crop, variety and note of a field.</summary>
+        public void SetDetails(string id, string crop, string variety, string note)
+        {
+            lock (_lock)
+            {
+                Field f = _data.Fields.FirstOrDefault(x => x.Id == id);
+                if (f == null) return;
+                f.Crop = (crop ?? "").Trim();
+                f.Variety = (variety ?? "").Trim();
+                f.Note = (note ?? "").Trim();
                 Save();
             }
         }

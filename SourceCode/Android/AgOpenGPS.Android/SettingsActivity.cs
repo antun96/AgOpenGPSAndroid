@@ -40,7 +40,6 @@ namespace AgOpenGPS.Droid
         private Spinner _language, _colours;
         private EditText _headlandWidth;
         private CheckBox _autoHeadland;
-        private const int RestoreRequest = 4;
         private bool _skipSave; // after a restore: the fields on screen still hold the old values
         private static readonly string[] LanguageCodes = { Tr.System, Tr.English, Tr.Croatian };
         private CheckBox _autoConnect, _ntripEnabled, _rawLog, _recordCoverage, _showCoverage, _useSim, _showMap;
@@ -299,65 +298,20 @@ namespace AgOpenGPS.Droid
         private void SaveBackup()
         {
             SaveFields();
-            IReadOnlyList<Field> fields = AppState.Fields.Fields;
-            string fieldsJson = FieldExport.ToGeoJson(fields, id => AppState.Lines.LinesFor(id));
-            string text = Backup.Write(AppState.Settings.ExportAll(), fieldsJson, DateTime.UtcNow);
-            FileSaver.Save(this, "AgOpenGPS backup " + DateTime.Now.ToString("yyyy-MM-dd", Inv) + ".json", "application/json",
-                new System.Text.UTF8Encoding(false).GetBytes(text), Tr.T("Backup saved"));
+            DataBackup.Save(this);
         }
 
-        private void PickBackup()
-        {
-            var intent = new Intent(Intent.ActionOpenDocument);
-            intent.AddCategory(Intent.CategoryOpenable);
-            intent.SetType("*/*");
-            StartActivityForResult(intent, RestoreRequest);
-        }
+        private void PickBackup() => DataBackup.Pick(this);
 
         protected override void OnActivityResult(int requestCode, Result resultCode, Intent data)
         {
             base.OnActivityResult(requestCode, resultCode, data);
             if (FileSaver.HandleResult(this, requestCode, resultCode, data)) return;
-            if (requestCode != RestoreRequest || resultCode != Result.Ok || data?.Data == null) return;
-
-            Dictionary<string, object> settings;
-            string fieldsJson;
-            try
+            DataBackup.HandleResult(this, requestCode, resultCode, data, () =>
             {
-                string text;
-                using (var stream = ContentResolver.OpenInputStream(data.Data))
-                using (var reader = new System.IO.StreamReader(stream))
-                    text = reader.ReadToEnd();
-                Backup.Read(text, out settings, out fieldsJson);
-            }
-            catch (Exception ex)
-            {
-                Toast.MakeText(this, Tr.T(ex.Message), ToastLength.Long).Show();
-                return;
-            }
-
-            List<ImportedField> fields = new List<ImportedField>();
-            if (fieldsJson != null)
-            {
-                try { fields = FieldImport.Parse(fieldsJson, "Field"); }
-                catch (FormatException) { /* a backup without fields */ }
-            }
-
-            new AlertDialog.Builder(this)
-                .SetTitle(Tr.T("Restore this backup?"))
-                .SetMessage(Tr.F("All settings are replaced; {0} fields are added (existing fields stay). The paired Bluetooth device is kept.", fields.Count))
-                .SetPositiveButton(Tr.T("Restore"), (s, e) =>
-                {
-                    AppState.Settings.ImportAll(settings);
-                    AppState.ReloadSettings();
-                    if (fields.Count > 0) AppState.ImportFields(fields);
-                    if (AppState.IsConnected) Task.Run(AppState.Reconnect); // with the restored NTRIP settings
-                    Toast.MakeText(this, Tr.T("Backup restored"), ToastLength.Long).Show();
-                    _skipSave = true;
-                    Recreate();
-                })
-                .SetNegativeButton(Tr.T("Cancel"), (s, e) => { })
-                .Show();
+                _skipSave = true; // the fields on screen still hold the old values
+                Recreate();
+            });
         }
 
         // ---------------------------------------------------------------- map download
@@ -618,7 +572,7 @@ namespace AgOpenGPS.Droid
             right.AddView(Ui.Hint(this, Tr.T("Default: Esri World Imagery, free with attribution. Check the source's terms, especially for commercial use.")));
 
             right.AddView(Ui.Heading(this, Tr.T("Backup")));
-            right.AddView(Ui.Hint(this, Tr.T("One file with all settings (vehicle, implement, NTRIP, alerts, map) and all fields with their boundaries and lines. Contains the NTRIP password: keep it private.")));
+            right.AddView(Ui.Hint(this, Tr.T("One file with everything: all settings, fields, lines, jobs, tracks and worked areas, to move to another tablet (also under Records → Data). Contains the NTRIP password: keep it private.")));
             var backup = new LinearLayout(this) { Orientation = Orientation.Horizontal };
             backup.AddView(Ui.Button(this, Tr.T("Save backup"), SaveBackup), Ui.Weight(1));
             backup.AddView(Ui.Button(this, Tr.T("Restore backup"), PickBackup), Ui.Weight(1));

@@ -29,10 +29,37 @@ namespace AgOpenGPS.Mobile.Core
         public string WorkType { get; set; } = "";
         /// <summary>The driver's own note, e.g. "Wheat, 220 kg/ha, wet in the north corner".</summary>
         public string Note { get; set; } = "";
+        /// <summary>The field's crop when the job started (the field may be sown with something else later).</summary>
+        public string Crop { get; set; } = "";
+        /// <summary>Products applied: sprays, fertilisers, seed, each with its dose per hectare.</summary>
+        public List<JobInput> Inputs { get; set; } = new List<JobInput>();
+        /// <summary>Spray water volume, litres per hectare; null if not given.</summary>
+        public double? WaterLitersPerHa { get; set; }
 
         [JsonIgnore] public double Hectares => WorkedSquareMeters / 10000.0;
         /// <summary>Average speed while working, km/h; NaN before any working time.</summary>
         [JsonIgnore] public double AverageSpeedKmh => WorkingSeconds > 1 ? WorkingMeters / WorkingSeconds * 3.6 : double.NaN;
+    }
+
+    /// <summary>One product applied in a job: a spray, a fertiliser, seed...</summary>
+    public sealed class JobInput
+    {
+        /// <summary>Product name as on the label, e.g. "Roundup Max".</summary>
+        public string Product { get; set; } = "";
+        /// <summary>Amount per hectare, in <see cref="Unit"/>.</summary>
+        public double Dose { get; set; }
+        /// <summary>"l/ha", "kg/ha", "ml/ha", "g/ha", "t/ha" or "seeds/ha".</summary>
+        public string Unit { get; set; } = "l/ha";
+        /// <summary>What it was used against (weed, pest, disease) or what for; may be empty.</summary>
+        public string Target { get; set; } = "";
+
+        public static readonly string[] Units = { "l/ha", "kg/ha", "ml/ha", "g/ha", "t/ha", "seeds/ha" };
+
+        /// <summary>The unit of the total: "l/ha" gives "l".</summary>
+        public string TotalUnit => Unit != null && Unit.EndsWith("/ha", StringComparison.Ordinal) ? Unit.Substring(0, Unit.Length - 3) : Unit ?? "";
+
+        /// <summary>Total amount for <paramref name="hectares"/>.</summary>
+        public double Total(double hectares) => Dose * Math.Max(0, hectares);
     }
 
     /// <summary>
@@ -223,6 +250,36 @@ namespace AgOpenGPS.Mobile.Core
             }
         }
 
+        /// <summary>Sets the products applied in a job and the spray water volume. False if there is no such job.</summary>
+        public bool SetInputs(string id, IEnumerable<JobInput> inputs, double? waterLitersPerHa)
+        {
+            lock (_lock)
+            {
+                Job j = _data.Jobs.FirstOrDefault(x => x.Id == id);
+                if (j == null) return false;
+                j.Inputs = (inputs ?? Enumerable.Empty<JobInput>())
+                    .Where(i => i != null && !string.IsNullOrWhiteSpace(i.Product))
+                    .Select(i => new JobInput { Product = i.Product.Trim(), Dose = Math.Max(0, i.Dose), Unit = i.Unit ?? "l/ha", Target = (i.Target ?? "").Trim() })
+                    .ToList();
+                j.WaterLitersPerHa = waterLitersPerHa.HasValue && waterLitersPerHa.Value > 0 ? waterLitersPerHa : null;
+                _dirty = true;
+                SaveLocked();
+                return true;
+            }
+        }
+
+        /// <summary>Products typed in earlier jobs, most recent first, without repeats; for suggestions.</summary>
+        public List<string> UsedProducts()
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var list = new List<string>();
+            lock (_lock)
+                foreach (Job j in _data.Jobs.OrderByDescending(x => x.StartUtc))
+                    foreach (JobInput i in j.Inputs ?? new List<JobInput>())
+                        if (!string.IsNullOrWhiteSpace(i.Product) && seen.Add(i.Product.Trim())) list.Add(i.Product.Trim());
+            return list;
+        }
+
         /// <summary>
         /// Work types typed in earlier jobs, most recently used first, without repeats (ignoring
         /// case) and without the <paramref name="known"/> ones (e.g. the default list, translated).
@@ -269,7 +326,7 @@ namespace AgOpenGPS.Mobile.Core
 
                 if (_current == null)
                 {
-                    _current = new Job { FieldId = field.Id, FieldName = field.Name, StartUtc = nowUtc, EndUtc = nowUtc, ImplementWidth = implementWidth };
+                    _current = new Job { FieldId = field.Id, FieldName = field.Name, Crop = field.Crop ?? "", StartUtc = nowUtc, EndUtc = nowUtc, ImplementWidth = implementWidth };
                     _data.Jobs.Add(_current);
                     _plane = new LocalPlane(latitude, longitude);
                     _lastSample = null;

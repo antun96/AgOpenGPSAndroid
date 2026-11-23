@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using Android.Bluetooth;
 using Android.Content;
@@ -183,6 +185,89 @@ namespace AgOpenGPS.Droid
             return (hectares, lineCount, first);
         }
 
+        // ---------------------------------------------------------------- full backup
+
+        private static string DataDir => _context.FilesDir.AbsolutePath;
+
+        /// <summary>
+        /// The data files for a full backup (fields, lines, jobs, tracks, worked areas), after saving
+        /// what is still in memory. Keys are the relative paths of <see cref="Backup.IsDataFile"/>.
+        /// </summary>
+        public static Dictionary<string, byte[]> CollectData()
+        {
+            SaveCoverage(force: true);
+            Jobs?.Save();
+            var files = new Dictionary<string, byte[]>();
+            string dir = DataDir;
+            foreach (string name in new[] { Backup.FieldsFile, Backup.LinesFile, Backup.JobsFile })
+            {
+                string path = Path.Combine(dir, name);
+                if (File.Exists(path)) files[name] = File.ReadAllBytes(path);
+            }
+            foreach (string folder in new[] { Backup.TracksFolder, Backup.CoverageFolder })
+            {
+                string sub = Path.Combine(dir, folder);
+                if (!Directory.Exists(sub)) continue;
+                foreach (string path in Directory.GetFiles(sub))
+                {
+                    string rel = folder + "/" + Path.GetFileName(path);
+                    if (Backup.IsDataFile(rel)) files[rel] = File.ReadAllBytes(path);
+                }
+            }
+            return files;
+        }
+
+        /// <summary>
+        /// Replaces all fields, lines, jobs, tracks and worked areas with the ones from a full backup
+        /// and reloads them. A job running now is ended first.
+        /// </summary>
+        public static void ReplaceData(IDictionary<string, byte[]> files)
+        {
+            lock (Lock)
+            {
+                Jobs?.EndJob();
+                Guidance.Working = false;
+                Guidance.SetCoverage(null);
+                string dir = DataDir;
+                foreach (string name in new[] { Backup.FieldsFile, Backup.LinesFile, Backup.JobsFile })
+                    File.Delete(Path.Combine(dir, name));
+                foreach (string folder in new[] { Backup.TracksFolder, Backup.CoverageFolder })
+                {
+                    string sub = Path.Combine(dir, folder);
+                    if (Directory.Exists(sub)) foreach (string f in Directory.GetFiles(sub)) File.Delete(f);
+                }
+                foreach (KeyValuePair<string, byte[]> f in files)
+                {
+                    if (!Backup.IsDataFile(f.Key)) continue; // never write anywhere else
+                    string path = Path.Combine(dir, f.Key.Replace('/', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    File.WriteAllBytes(path, f.Value);
+                }
+
+                Lines = new AbLineStore(Path.Combine(dir, Backup.LinesFile));
+                Fields = new FieldStore(Path.Combine(dir, Backup.FieldsFile));
+                Jobs = new JobLog(Path.Combine(dir, Backup.JobsFile));
+                Guidance.SetActiveField(Fields.Active);
+                Guidance.SetCoverage(LoadCoverage(Fields.Active));
+                AbLine line = Lines.Active;
+                Guidance.SetActiveLine(line != null && line.FieldId == Fields.Active?.Id ? line : null);
+                MoveSimulatorToField();
+            }
+        }
+
+        /// <summary>Bytes used by the app's data, by kind, for the Data page.</summary>
+        public static (long Fields, long Jobs, long Tracks, long Coverage, long Map) StorageUse()
+        {
+            string dir = DataDir;
+            long Size(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
+            long Folder(string path) => Directory.Exists(path) ? Directory.GetFiles(path, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length) : 0;
+            return (Size(Path.Combine(dir, Backup.FieldsFile)) + Size(Path.Combine(dir, Backup.LinesFile)),
+                Size(Path.Combine(dir, Backup.JobsFile)),
+                Folder(Path.Combine(dir, Backup.TracksFolder)),
+                Folder(Path.Combine(dir, Backup.CoverageFolder)),
+                Map?.DiskBytes() ?? 0);
+        }
+
         // ---------------------------------------------------------------- fields and lines
 
         /// <summary>Opens a field (null closes it). A line of another field is put away.</summary>
@@ -303,13 +388,13 @@ namespace AgOpenGPS.Droid
             if (!on) SaveCoverage();
         }
 
-        /// <summary>Saves the open field's worked area if it changed. Coverage without a field is not kept.</summary>
-        public static void SaveCoverage()
+        /// <summary>Saves the open field's worked area if it changed (or always, with <paramref name="force"/>). Coverage without a field is not kept.</summary>
+        public static void SaveCoverage(bool force = false)
         {
             Field field = Fields?.Active;
             CoverageMap map = Guidance.Coverage;
             _lastCoverageSave = DateTime.UtcNow;
-            if (field == null || map == null || !map.Dirty) return;
+            if (field == null || map == null || (!map.Dirty && !force)) return;
             try { map.Save(CoveragePath(field)); }
             catch (IOException) { /* storage full: try again next time */ }
         }

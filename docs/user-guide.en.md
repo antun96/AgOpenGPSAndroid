@@ -69,6 +69,17 @@ When a job starts, the app asks **what you are doing** (sowing, spraying...): ta
 
 While Work is on, the app also records the **track**: where you drove, with the start and end time of each stretch between pauses. **Export...** offers **PDF** with a map of each job (the field and the strip worked), **Track: KML** (opens in Google Earth) and **Track: GeoJSON** (QGIS and farm software). Deleting a job deletes its track.
 
+## Records
+
+**Records** (top bar) shows everything the app keeps:
+
+- **Fields**: every field with its area, crop, lines and last job. Tap one for a small map, the **crop** and **variety** of this season and your **notes** (soil, drainage, lease). **Open** takes you to it on the driving screen; **Export** and **Delete** are there too.
+- **Jobs**: all jobs, filtered by field, year and work type, with totals. Tap a job to see it on a map, edit it or export it. **Export** saves exactly the jobs shown.
+- **Season**: each field against each work type done that year, with hectares, % of the field and the last date. What is *not done* shows too.
+- **Spray & fertiliser**: the record of products applied, with totals per product. Add products in a job (**Edit...**): product, dose per hectare, unit and what it was against, plus the spray water. Area and total amount come from the job. **Export PDF** prints the record, **Export CSV** opens it in Excel.
+- **Lines**: all A-B lines by field. Tap one to use, rename or delete it.
+- **Data**: **Back up everything** and **Restore...**, and how much storage each part uses.
+
 ## Sound alerts
 
 **Settings → Sound alerts**: field edge ahead, left the field, RTK Fix lost and back, corrections stopped, connection lost, off the line. Each sounds once per event, also with the tablet on silent. **Test sound** checks the volume.
@@ -79,7 +90,7 @@ While Work is on, the app also records the **track**: where you drove, with the 
 
 ## Backup
 
-**Settings → Backup → Save backup** writes one file with all settings and all fields (boundaries and lines). **Restore backup** on this or another tablet sets everything up again. The file contains the NTRIP password: keep it private.
+**Settings → Backup → Save backup** (or **Records → Data → Back up everything**) writes one file with everything: settings, fields, lines, jobs with products and notes, tracks and worked areas. **Restore** on another tablet replaces everything there with it, so jobs stay linked to their fields. Older backup files (settings and fields) still work. The file contains the NTRIP password: keep it private.
 
 ## Simulator
 

@@ -69,6 +69,17 @@ Kad posao počne, aplikacija pita **što radite** (sjetva, prskanje...): dodirni
 
 Dok je Rad uključen, aplikacija snima i **trag**: kuda ste vozili, s vremenom početka i kraja svakog dijela između stanki. **Izvoz...** nudi **PDF** s kartom svakog posla (parcela i obrađeni pojas), **Trag: KML** (otvara se u Google Earthu) i **Trag: GeoJSON** (QGIS i programi za gospodarstvo). Brisanjem posla briše se i njegov trag.
 
+## Evidencija
+
+**Evidencija** (gornja traka) prikazuje sve što aplikacija čuva:
+
+- **Parcele**: svaka parcela s površinom, kulturom, linijama i zadnjim poslom. Dodirom vidite malu kartu, **kulturu** i **sortu** ove sezone te svoje **bilješke** (tlo, odvodnja, zakup). **Otvori** vas vodi na nju na zaslonu za vožnju; tu su i **Izvezi** i **Obriši**.
+- **Poslovi**: svi poslovi, s odabirom parcele, godine i vrste rada te zbrojevima. Dodirom posla vidite ga na karti, uređujete ili izvozite. **Izvezi** sprema upravo prikazane poslove.
+- **Sezona**: svaka parcela prema svakoj vrsti rada te godine, s hektarima, % parcele i zadnjim datumom. Vidi se i što *nije obavljeno*.
+- **Zaštita i gnojidba**: evidencija primijenjenih proizvoda sa zbrojem po proizvodu. Proizvode dodajete u poslu (**Uredi...**): proizvod, doza po hektaru, jedinica i protiv čega je primijenjen te voda za prskanje. Površina i ukupna količina dolaze iz posla. **Izvezi PDF** za ispis evidencije, **Izvezi CSV** za Excel.
+- **Linije**: sve A-B linije po parcelama. Dodirom je koristite, preimenujete ili brišete.
+- **Podaci**: **Spremi sve** i **Vrati...** te koliko prostora zauzima svaki dio.
+
 ## Zvučna upozorenja
 
 **Postavke → Zvučna upozorenja**: rub parcele ispred, izlazak s parcele, RTK Fix izgubljen i ponovno tu, korekcije prestale, veza izgubljena, izvan linije. Svako se oglasi jednom po događaju, i kad je tablet utišan. **Probni zvuk** provjerava glasnoću.
@@ -79,7 +90,7 @@ Dok je Rad uključen, aplikacija snima i **trag**: kuda ste vozili, s vremenom p
 
 ## Sigurnosna kopija
 
-**Postavke → Sigurnosna kopija → Spremi kopiju** sprema jednu datoteku sa svim postavkama i svim parcelama (međe i linije). **Vrati kopiju** na ovom ili drugom tabletu sve ponovno postavlja. Datoteka sadrži NTRIP lozinku: čuvajte je privatno.
+**Postavke → Sigurnosna kopija → Spremi kopiju** (ili **Evidencija → Podaci → Spremi sve**) sprema jednu datoteku sa svime: postavke, parcele, linije, poslovi s proizvodima i bilješkama, tragovi i obrađene površine. **Vrati** na drugom tabletu zamjenjuje sve na njemu, pa poslovi ostaju povezani s parcelama. Starije kopije (postavke i parcele) i dalje rade. Datoteka sadrži NTRIP lozinku: čuvajte je privatno.
 
 ## Simulator
 

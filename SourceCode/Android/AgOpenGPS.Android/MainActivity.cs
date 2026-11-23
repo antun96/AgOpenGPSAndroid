@@ -303,141 +303,27 @@ namespace AgOpenGPS.Droid
         {
             IReadOnlyList<Job> jobs = AppState.Jobs.Jobs;
             Job current = AppState.Jobs.Current;
-            var items = new string[jobs.Count];
-            for (int i = 0; i < jobs.Count; i++)
-            {
-                Job j = jobs[i];
-                items[i] = Tr.F("{0}{1}  {2}   {3:0.00} ha   {4} h:mm   {5} km/h",
-                    current != null && j.Id == current.Id ? "▶ " : "", j.StartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", Inv),
-                    string.IsNullOrEmpty(j.WorkType) ? j.FieldName : j.FieldName + " · " + j.WorkType,
-                    j.Hectares, JobLog.Duration(j.WorkingSeconds),
-                    double.IsNaN(j.AverageSpeedKmh) ? "-" : j.AverageSpeedKmh.ToString("0.0", Inv))
-                    + (string.IsNullOrEmpty(j.Note) ? "" : "\n" + Shorten(j.Note, 80));
-            }
-
+            string[] items = jobs.Select(j => JobDialogs.Line(j, current)).ToArray();
             var b = new AlertDialog.Builder(this)
                 .SetTitle(jobs.Count == 0 ? Tr.T("No jobs yet: a job starts with Work: ON in a field") : Tr.T("Jobs"))
                 .SetNegativeButton(Tr.T("Close"), (s, e) => { });
             if (jobs.Count > 0)
             {
-                b.SetItems(items, (s, e) => EditJob(jobs[e.Which]));
-                b.SetPositiveButton(Tr.T("Export..."), (s, e) => ChooseJobExport());
+                b.SetItems(items, (s, e) => JobDialogs.Edit(this, jobs[e.Which]));
+                b.SetPositiveButton(Tr.T("Export..."), (s, e) => JobDialogs.Export(this, jobs));
             }
             if (current != null) b.SetNeutralButton(Tr.T("End job"), (s, e) => AppState.Jobs.EndJob());
             b.Show();
         }
 
-        private static string Shorten(string s, int max) => s.Length <= max ? s : s.Substring(0, max - 1) + "…";
-
-        /// <summary>The work types to offer: the common ones (translated), then the driver's own, newest first.</summary>
-        private static List<string> WorkTypeChoices()
-        {
-            List<string> list = JobLog.DefaultWorkTypes.Select(Tr.T).ToList();
-            list.AddRange(AppState.Jobs.UsedWorkTypes(list));
-            return list;
-        }
-
-        /// <summary>Once, just after a job started: what is being done? One tap, or Skip.</summary>
+        /// <summary>Once, just after a job started: what is being done?</summary>
         private void AskWorkType()
         {
             Job job = AppState.Jobs.Current;
             if (job == null || job.Id == _askedJobId) return;
             _askedJobId = job.Id;
             if (!string.IsNullOrEmpty(job.WorkType) || (DateTime.UtcNow - job.StartUtc).TotalSeconds > 30) return;
-
-            List<string> choices = WorkTypeChoices();
-            var items = choices.Concat(new[] { Tr.T("Other...") }).ToArray();
-            new AlertDialog.Builder(this)
-                .SetTitle(Tr.F("What are you doing in {0}?", job.FieldName))
-                .SetItems(items, (s, e) =>
-                {
-                    if (e.Which < choices.Count) AppState.Jobs.SetDetails(job.Id, choices[e.Which], job.Note);
-                    else AskText(Tr.T("Work type"), "", text => AppState.Jobs.SetDetails(job.Id, text, job.Note));
-                })
-                .SetNegativeButton(Tr.T("Skip"), (s, e) => { })
-                .Show();
-        }
-
-        /// <summary>A job's work type and note, with Delete.</summary>
-        private void EditJob(Job job)
-        {
-            int pad = Ui.Dp(this, 20);
-            var box = new LinearLayout(this) { Orientation = Orientation.Vertical };
-            box.SetPadding(pad, Ui.Dp(this, 8), pad, 0);
-            box.AddView(Ui.Hint(this, Tr.F("{0}   {1} - {2}   {3:0.00} ha", job.FieldName,
-                job.StartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", Inv), job.EndUtc.ToLocalTime().ToString("HH:mm", Inv), job.Hectares)));
-
-            box.AddView(Ui.Hint(this, Tr.T("Work type")));
-            var type = new AutoCompleteTextView(this) { Text = job.WorkType, Threshold = 0 };
-            type.SetSingleLine(true);
-            type.Adapter = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleDropDownItem1Line, WorkTypeChoices());
-            type.Click += (s, e) => type.ShowDropDown();
-            box.AddView(type);
-
-            box.AddView(Ui.Hint(this, Tr.T("Note (seed, rate, weather, problems...)")));
-            var note = new EditText(this) { Text = job.Note };
-            note.SetMinLines(3);
-            note.SetMaxLines(8);
-            note.InputType = global::Android.Text.InputTypes.ClassText | global::Android.Text.InputTypes.TextFlagMultiLine | global::Android.Text.InputTypes.TextFlagCapSentences;
-            note.Gravity = GravityFlags.Top | GravityFlags.Start;
-            box.AddView(note);
-
-            var scroll = new ScrollView(this);
-            scroll.AddView(box);
-            new AlertDialog.Builder(this)
-                .SetTitle(Tr.T("Job"))
-                .SetView(scroll)
-                .SetPositiveButton(Tr.T("Save"), (s, e) => AppState.Jobs.SetDetails(job.Id, type.Text, note.Text))
-                .SetNeutralButton(Tr.T("Delete"), (s, e) => ConfirmDeleteJob(job))
-                .SetNegativeButton(Tr.T("Cancel"), (s, e) => { })
-                .Show();
-        }
-
-        private void ConfirmDeleteJob(Job job)
-        {
-            Confirm(Tr.F("Delete the job of {0} ({1})?", job.FieldName, job.StartUtc.ToLocalTime().ToString("yyyy-MM-dd", Inv)), null,
-                Tr.T("Delete"), () => AppState.Jobs.Delete(job.Id));
-        }
-
-        private void ChooseJobExport()
-        {
-            AppState.Jobs.Save();
-            string day = DateTime.Now.ToString("yyyy-MM-dd", Inv);
-            new AlertDialog.Builder(this)
-                .SetTitle(Tr.T("Export the job log"))
-                .SetItems(new[] { Tr.T("CSV (Excel)"), Tr.T("PDF (print, with a map of each job)"), Tr.T("Track: KML (Google Earth)"), Tr.T("Track: GeoJSON (QGIS, farm software)") }, (s, e) =>
-                {
-                    JobLog log = AppState.Jobs;
-                    if (e.Which == 0)
-                    {
-                        // UTF-8 with BOM so Excel shows č, ć, š, ž, đ correctly.
-                        byte[] csv = new System.Text.UTF8Encoding(true).GetPreamble()
-                            .Concat(System.Text.Encoding.UTF8.GetBytes(JobLog.ToCsv(log.Jobs, Tr.T))).ToArray();
-                        FileSaver.Save(this, Tr.T("Job log") + " " + day + ".csv", "text/csv", csv, Tr.T("Job log saved"));
-                    }
-                    else if (e.Which == 1)
-                    {
-                        byte[] pdf = JobReport.Pdf(log.Jobs, j => log.Track(j.Id),
-                            j => AppState.Fields.Fields.FirstOrDefault(f => f.Id == j.FieldId)?.Boundary);
-                        FileSaver.Save(this, Tr.T("Job log") + " " + day + ".pdf", "application/pdf", pdf, Tr.T("Job log saved"));
-                    }
-                    else
-                    {
-                        List<JobTrack> tracks = log.Jobs.Select(j => new JobTrack { Job = j, Pieces = log.Track(j.Id) }).Where(t => t.HasTrack).ToList();
-                        if (tracks.Count == 0)
-                        {
-                            Toast_(Tr.T("No tracks yet: a track is recorded while Work is on"), true);
-                            return;
-                        }
-                        if (e.Which == 2)
-                            FileSaver.Save(this, Tr.T("Tracks") + " " + day + ".kml", "application/vnd.google-earth.kml+xml",
-                                System.Text.Encoding.UTF8.GetBytes(TrackExport.ToKml(tracks, Tr.T)), Tr.T("Tracks saved"));
-                        else
-                            FileSaver.Save(this, Tr.T("Tracks") + " " + day + ".geojson", "application/geo+json",
-                                System.Text.Encoding.UTF8.GetBytes(TrackExport.ToGeoJson(tracks)), Tr.T("Tracks saved"));
-                    }
-                })
-                .Show();
+            JobDialogs.ChooseWorkType(this, job);
         }
 
         // ---------------------------------------------------------------- boundary
@@ -911,6 +797,7 @@ namespace AgOpenGPS.Droid
             bar.AddView(_fixInfo, Ui.Weight(1));
             _connect = Ui.Button(this, Tr.T("Connect"), OnConnectClicked, 48);
             bar.AddView(_connect);
+            bar.AddView(Ui.Button(this, Tr.T("Records"), () => StartActivity(new Intent(this, typeof(RecordsActivity))), 48));
             bar.AddView(Ui.Button(this, Tr.T("Help"), () => StartActivity(new Intent(this, typeof(HelpActivity))), 48));
             bar.AddView(Ui.Button(this, Tr.T("Settings"), () => StartActivity(new Intent(this, typeof(SettingsActivity))), 48));
             root.AddView(bar);

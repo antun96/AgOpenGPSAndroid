@@ -208,6 +208,84 @@ namespace AgOpenGPS.Droid
             }
         }
 
+        /// <summary>
+        /// The spray and fertiliser record of a year as a printable table (A4 landscape): one line per
+        /// product per job, then the totals per product.
+        /// </summary>
+        public static byte[] InputPdf(List<InputRecordRow> rows, int year)
+        {
+            var ci = CultureInfo.InvariantCulture;
+            string[] head =
+            {
+                Tr.T("Date"), Tr.T("Field"), Tr.T("Crop"), Tr.T("Area (ha)"), Tr.T("Product"), Tr.T("Dose"),
+                Tr.T("Total"), Tr.T("Water (l/ha)"), Tr.T("Against / purpose"),
+            };
+            float[] colX = { 0, 62, 182, 272, 322, 482, 562, 632, 692 };
+            var title = new Paint { Color = Color.Black, TextSize = 18, FakeBoldText = true, AntiAlias = true };
+            var bold = new Paint { Color = Color.Black, TextSize = 10, FakeBoldText = true, AntiAlias = true };
+            var text = new Paint { Color = Color.Black, TextSize = 9.5f, AntiAlias = true };
+            var line = new Paint { Color = Color.Gray, StrokeWidth = 0.5f };
+
+            using (var doc = new PdfDocument())
+            {
+                int pageNo = 0;
+                PdfDocument.Page page = null;
+                Canvas c = null;
+                float y = 0;
+                void NewPage(bool table)
+                {
+                    if (page != null) doc.FinishPage(page);
+                    pageNo++;
+                    page = doc.StartPage(new PdfDocument.PageInfo.Builder(PageW, PageH, pageNo).Create());
+                    c = page.Canvas;
+                    y = Margin + 18;
+                    c.DrawText(Tr.F("Spray and fertiliser record {0}", year) + "  –  AgOpenGPS", Margin, y, title);
+                    y += 16;
+                    c.DrawText(System.DateTime.Now.ToString("yyyy-MM-dd HH:mm", ci) + "   " + Tr.F("Page {0}", pageNo), Margin, y, text);
+                    y += 24;
+                    if (!table) return;
+                    for (int i = 0; i < head.Length; i++) c.DrawText(head[i], Margin + colX[i], y, bold);
+                    y += 6;
+                    c.DrawLine(Margin, y, PageW - Margin, y, line);
+                    y += RowH - 4;
+                }
+
+                NewPage(true);
+                foreach (InputRecordRow r in rows)
+                {
+                    if (y > PageH - Margin - RowH) NewPage(true);
+                    Job j = r.Job;
+                    string[] cells =
+                    {
+                        j.StartUtc.ToLocalTime().ToString("yyyy-MM-dd", ci), Fit(j.FieldName, 22), Fit(j.Crop, 16), j.Hectares.ToString("0.00", ci),
+                        Fit(r.Input.Product, 28), r.Input.Dose.ToString("0.###", ci) + " " + r.Input.Unit,
+                        r.Total.ToString("0.##", ci) + " " + r.Input.TotalUnit,
+                        j.WaterLitersPerHa.HasValue ? j.WaterLitersPerHa.Value.ToString("0", ci) : "", Fit(r.Input.Target, 26),
+                    };
+                    for (int i = 0; i < cells.Length; i++) c.DrawText(cells[i], Margin + colX[i], y, text);
+                    y += RowH;
+                }
+
+                List<ProductTotal> totals = InputRecord.Totals(rows);
+                if (y > PageH - Margin - RowH * (totals.Count + 3)) NewPage(false);
+                y += 8;
+                c.DrawText(Tr.T("Totals"), Margin, y, bold);
+                y += RowH;
+                foreach (ProductTotal t in totals)
+                {
+                    if (y > PageH - Margin) NewPage(false);
+                    c.DrawText(Tr.F("{0}: {1:0.##} {2} on {3:0.00} ha ({4}×)", t.Product, t.Amount, t.Unit, t.Hectares, t.Uses), Margin, y, text);
+                    y += RowH;
+                }
+                doc.FinishPage(page);
+                using (var ms = new MemoryStream())
+                {
+                    doc.WriteTo(ms);
+                    return ms.ToArray();
+                }
+            }
+        }
+
         private static IEnumerable<string> Wrap(string s, Paint paint, float width)
         {
             foreach (string para in s.Replace("\r", "").Split('\n'))
