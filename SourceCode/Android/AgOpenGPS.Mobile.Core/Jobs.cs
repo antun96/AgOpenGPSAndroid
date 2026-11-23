@@ -31,19 +31,15 @@ namespace AgOpenGPS.Mobile.Core
         [JsonIgnore] public double AverageSpeedKmh => WorkingSeconds > 1 ? WorkingMeters / WorkingSeconds * 3.6 : double.NaN;
     }
 
-    /// <summary>One recorded point of a job's track.</summary>
-    public readonly struct TrackSample
+    /// <summary>
+    /// One stretch of a job's track, driven without a pause: its positions (about one per metre)
+    /// and only its start and end time.
+    /// </summary>
+    public sealed class TrackPiece
     {
-        public TrackSample(DateTime utc, double latitude, double longitude)
-        {
-            Utc = utc;
-            Latitude = latitude;
-            Longitude = longitude;
-        }
-
-        public DateTime Utc { get; }
-        public double Latitude { get; }
-        public double Longitude { get; }
+        public DateTime StartUtc;
+        public DateTime EndUtc;
+        public List<TrackPoint> Points = new List<TrackPoint>();
     }
 
     /// <summary>
@@ -52,8 +48,9 @@ namespace AgOpenGPS.Mobile.Core
     /// Sampled a few times a second (<see cref="Sample"/>). Saved as JSON. Thread safe.
     /// <para>
     /// Each job also keeps its track: where the implement went while Work was on, a point about
-    /// every <see cref="TrackSpacingMeters"/>, in a small text file per job ("time,lat,lon" lines;
-    /// "#" starts a new piece after Work was off or the signal was lost).
+    /// every <see cref="TrackSpacingMeters"/>, in a small text file per job. A piece of track starts
+    /// with "#start" and ends with "=end" (times in Unix milliseconds); between them are
+    /// "lat,lon" lines. A new piece starts after Work was off or the signal was lost.
     /// </para>
     /// </summary>
     public sealed class JobLog
@@ -63,8 +60,6 @@ namespace AgOpenGPS.Mobile.Core
         public const double MaxStepMeters = 10.0;
         /// <summary>A track point is kept once the implement moved this far from the last one.</summary>
         public const double TrackSpacingMeters = 1.0;
-        /// <summary>Keep the last point at least this often, even standing still (shows stops).</summary>
-        public static readonly TimeSpan TrackMaxInterval = TimeSpan.FromSeconds(10);
 
         private readonly string _path;
         private readonly object _lock = new object();
@@ -80,8 +75,9 @@ namespace AgOpenGPS.Mobile.Core
         private readonly StringBuilder _trackBuffer = new StringBuilder();
         private string _trackBufferJob;
         private GeoPoint? _lastTrackPos;
-        private DateTime _lastTrackUtc;
         private bool _trackBreak = true;
+        private bool _pieceOpen;          // "#start" written, "=end" not yet
+        private DateTime _pieceLastUtc;   // last moment of the open piece
 
         /// <param name="trackDirectory">Where the tracks go; null = "tracks" next to the log; "" = no tracks.</param>
         public JobLog(string path, string trackDirectory = null)
@@ -93,39 +89,67 @@ namespace AgOpenGPS.Mobile.Core
 
         private string TrackPath(string jobId) => string.IsNullOrEmpty(_trackDir) ? null : Path.Combine(_trackDir, jobId + ".trk");
 
+        private static string Ms(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+
         /// <summary>The job's track in pieces (a new piece after each pause or gap), oldest first. Empty without one.</summary>
-        public List<List<TrackSample>> Track(string jobId)
+        public List<TrackPiece> Track(string jobId)
         {
-            var pieces = new List<List<TrackSample>>();
+            var pieces = new List<TrackPiece>();
             lock (_lock)
             {
                 string text = "";
                 string file = TrackPath(jobId);
                 try { if (file != null && File.Exists(file)) text = File.ReadAllText(file); }
                 catch (IOException) { }
-                if (_trackBufferJob == jobId) text += _trackBuffer.ToString();
+                if (_trackBufferJob == jobId)
+                {
+                    text += _trackBuffer.ToString();
+                    if (_pieceOpen) text += "=" + Ms(_pieceLastUtc) + "\n"; // the piece still being driven
+                }
                 ParseTrack(text, pieces);
             }
             return pieces;
         }
 
-        internal static void ParseTrack(string text, List<List<TrackSample>> pieces)
+        internal static void ParseTrack(string text, List<TrackPiece> pieces)
         {
-            List<TrackSample> piece = null;
+            TrackPiece piece = null;
             var ci = CultureInfo.InvariantCulture;
+            DateTime FromMs(long ms) => DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
             foreach (string raw in text.Split('\n'))
             {
                 string line = raw.Trim();
                 if (line.Length == 0) continue;
-                if (line[0] == '#') { piece = null; continue; }
+                if (line[0] == '#' || line[0] == '=')
+                {
+                    long.TryParse(line.Substring(1), NumberStyles.Integer, ci, out long ms);
+                    if (line[0] == '#')
+                    {
+                        piece = new TrackPiece();
+                        if (ms > 0) piece.StartUtc = piece.EndUtc = FromMs(ms);
+                        pieces.Add(piece);
+                    }
+                    else
+                    {
+                        if (piece != null && ms > 0) piece.EndUtc = FromMs(ms);
+                        piece = null;
+                    }
+                    continue;
+                }
                 string[] f = line.Split(',');
-                if (f.Length < 3 || !long.TryParse(f[0], NumberStyles.Integer, ci, out long ms)
-                    || !double.TryParse(f[1], NumberStyles.Float, ci, out double lat)
-                    || !double.TryParse(f[2], NumberStyles.Float, ci, out double lon)) continue; // a cut-off last line
-                if (piece == null) pieces.Add(piece = new List<TrackSample>());
-                piece.Add(new TrackSample(DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime, lat, lon));
+                // "lat,lon"; tracks from version 0.14.2 had "time,lat,lon" (read as well).
+                int at = f.Length >= 3 ? 1 : 0;
+                if (f.Length < 2 || !double.TryParse(f[at], NumberStyles.Float, ci, out double lat)
+                    || !double.TryParse(f[at + 1], NumberStyles.Float, ci, out double lon)) continue; // a cut-off last line
+                if (piece == null) pieces.Add(piece = new TrackPiece());
+                if (at == 1 && long.TryParse(f[0], NumberStyles.Integer, ci, out long t))
+                {
+                    if (piece.Points.Count == 0) piece.StartUtc = FromMs(t);
+                    piece.EndUtc = FromMs(t);
+                }
+                piece.Points.Add(new TrackPoint(lat, lon));
             }
-            pieces.RemoveAll(p => p.Count < 2);
+            pieces.RemoveAll(p => p.Points.Count < 2);
         }
 
         private void AddTrackPoint(DateTime utc, double latitude, double longitude, GeoPoint here)
@@ -133,19 +157,32 @@ namespace AgOpenGPS.Mobile.Core
             if (string.IsNullOrEmpty(_trackDir)) return;
             if (_trackBufferJob != _current.Id)
             {
+                ClosePieceLocked();
                 FlushTrackLocked();
                 _trackBufferJob = _current.Id;
             }
-            bool far = !_lastTrackPos.HasValue || _lastTrackPos.Value.DistanceTo(here) >= TrackSpacingMeters;
-            if (!_trackBreak && !far && utc - _lastTrackUtc < TrackMaxInterval) return;
-            if (_trackBreak) _trackBuffer.Append("#\n");
+            if (_trackBreak)
+            {
+                ClosePieceLocked();
+                _trackBuffer.Append('#').Append(Ms(utc)).Append('\n');
+                _pieceOpen = true;
+                _lastTrackPos = null;
+                _trackBreak = false;
+            }
+            _pieceLastUtc = utc;
+            if (_lastTrackPos.HasValue && _lastTrackPos.Value.DistanceTo(here) < TrackSpacingMeters) return;
             var ci = CultureInfo.InvariantCulture;
-            _trackBuffer.Append(new DateTimeOffset(utc).ToUnixTimeMilliseconds().ToString(ci)).Append(',')
-                .Append(latitude.ToString("0.0000000", ci)).Append(',')
+            _trackBuffer.Append(latitude.ToString("0.0000000", ci)).Append(',')
                 .Append(longitude.ToString("0.0000000", ci)).Append('\n');
-            _trackBreak = false;
             _lastTrackPos = here;
-            _lastTrackUtc = utc;
+        }
+
+        /// <summary>Writes the end time of the piece being driven, if any.</summary>
+        private void ClosePieceLocked()
+        {
+            if (!_pieceOpen) return;
+            _trackBuffer.Append('=').Append(Ms(_pieceLastUtc)).Append('\n');
+            _pieceOpen = false;
         }
 
         private void FlushTrackLocked()
@@ -239,7 +276,11 @@ namespace AgOpenGPS.Mobile.Core
                 _data.Jobs.Remove(_current); // switched on and off again at once: no job
                 DeleteTrackLocked(_current.Id);
             }
-            else FlushTrackLocked();
+            else
+            {
+                ClosePieceLocked();
+                FlushTrackLocked();
+            }
             _current = null;
             _lastSample = null;
             _lastPos = null;
@@ -267,6 +308,7 @@ namespace AgOpenGPS.Mobile.Core
             {
                 _trackBuffer.Clear();
                 _trackBufferJob = null;
+                _pieceOpen = false;
             }
             string file = TrackPath(id);
             try { if (file != null) File.Delete(file); }

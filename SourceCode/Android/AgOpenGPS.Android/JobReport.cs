@@ -21,7 +21,7 @@ namespace AgOpenGPS.Droid
 
         /// <param name="track">The job's track, or null to leave the map pages out.</param>
         /// <param name="boundary">The job's field boundary (may be empty).</param>
-        public static byte[] Pdf(IEnumerable<Job> jobsNewestFirst, Func<Job, List<List<TrackSample>>> track = null,
+        public static byte[] Pdf(IEnumerable<Job> jobsNewestFirst, Func<Job, List<TrackPiece>> track = null,
             Func<Job, List<TrackPoint>> boundary = null)
         {
             List<Job> jobs = jobsNewestFirst.OrderBy(j => j.StartUtc).ToList();
@@ -89,7 +89,7 @@ namespace AgOpenGPS.Droid
                 {
                     foreach (Job j in jobs)
                     {
-                        List<List<TrackSample>> pieces = track(j);
+                        List<TrackPiece> pieces = track(j);
                         if (pieces == null || pieces.Count == 0) continue;
                         pageNo++;
                         page = doc.StartPage(new PdfDocument.PageInfo.Builder(PageW, PageH, pageNo).Create());
@@ -107,7 +107,7 @@ namespace AgOpenGPS.Droid
         }
 
         /// <summary>One job on one page: the field boundary and the strip worked, at the implement width, north up.</summary>
-        private static void DrawJobMap(Canvas c, Job j, List<List<TrackSample>> pieces, List<TrackPoint> boundary,
+        private static void DrawJobMap(Canvas c, Job j, List<TrackPiece> pieces, List<TrackPoint> boundary,
             Paint title, Paint text, int pageNo)
         {
             var ci = CultureInfo.InvariantCulture;
@@ -119,9 +119,9 @@ namespace AgOpenGPS.Droid
                 + "   " + Tr.F("Page {0}", pageNo), Margin, y, text);
 
             // Everything on one local plane, fitted into the area below the heading.
-            TrackSample first = pieces[0][0];
+            TrackPoint first = pieces[0].Points[0];
             var plane = new LocalPlane(first.Latitude, first.Longitude);
-            var track = pieces.Select(p => p.Select(q => plane.ToLocal(q.Latitude, q.Longitude)).ToList()).ToList();
+            var track = pieces.Select(p => p.Points.Select(q => plane.ToLocal(q.Latitude, q.Longitude)).ToList()).ToList();
             var edge = boundary.Select(b => plane.ToLocal(b.Latitude, b.Longitude)).ToList();
             var all = track.SelectMany(p => p).Concat(edge).ToList();
             double minN = all.Min(p => p.Northing), maxN = all.Max(p => p.Northing);

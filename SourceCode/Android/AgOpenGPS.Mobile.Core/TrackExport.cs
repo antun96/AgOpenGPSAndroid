@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security;
 using System.Text;
 using System.Text.Json;
+using AgOpenGPS.Mobile.Core.Guidance;
 
 namespace AgOpenGPS.Mobile.Core
 {
@@ -12,14 +13,14 @@ namespace AgOpenGPS.Mobile.Core
     public sealed class JobTrack
     {
         public Job Job;
-        public List<List<TrackSample>> Pieces = new List<List<TrackSample>>();
-        public bool HasTrack => Pieces.Any(p => p.Count >= 2);
+        public List<TrackPiece> Pieces = new List<TrackPiece>();
+        public bool HasTrack => Pieces.Any(p => p.Points.Count >= 2);
     }
 
     /// <summary>
     /// Job tracks as files other programs read: KML (Google Earth, QGIS) and GeoJSON (QGIS, web maps,
-    /// farm software). One line per piece of track (a new piece after each pause), with the job's
-    /// figures as properties.
+    /// farm software). One line per piece of track (a new piece after each pause), with its start
+    /// and end time and the job's figures as properties.
     /// </summary>
     public static class TrackExport
     {
@@ -42,13 +43,14 @@ namespace AgOpenGPS.Mobile.Core
                 sb.Append("    <description>").Append(X(Summary(j, t))).Append("</description>\n");
                 sb.Append("    <TimeSpan><begin>").Append(Iso(j.StartUtc)).Append("</begin><end>").Append(Iso(j.EndUtc)).Append("</end></TimeSpan>\n");
                 int n = 0;
-                foreach (List<TrackSample> piece in jt.Pieces.Where(p => p.Count >= 2))
+                foreach (TrackPiece piece in jt.Pieces.Where(p => p.Points.Count >= 2))
                 {
                     n++;
-                    sb.Append("    <Placemark>\n      <name>").Append(n.ToString(Ci)).Append("</name>\n");
-                    sb.Append("      <TimeSpan><begin>").Append(Iso(piece[0].Utc)).Append("</begin><end>").Append(Iso(piece[piece.Count - 1].Utc)).Append("</end></TimeSpan>\n");
+                    sb.Append("    <Placemark>\n      <name>").Append(X(n.ToString(Ci) + ": " + piece.StartUtc.ToLocalTime().ToString("HH:mm", Ci)
+                        + " - " + piece.EndUtc.ToLocalTime().ToString("HH:mm", Ci))).Append("</name>\n");
+                    sb.Append("      <TimeSpan><begin>").Append(Iso(piece.StartUtc)).Append("</begin><end>").Append(Iso(piece.EndUtc)).Append("</end></TimeSpan>\n");
                     sb.Append("      <styleUrl>#track</styleUrl>\n      <LineString><tessellate>1</tessellate><coordinates>\n");
-                    foreach (TrackSample p in piece)
+                    foreach (TrackPoint p in piece.Points)
                         sb.Append("        ").Append(p.Longitude.ToString("0.0000000", Ci)).Append(',').Append(p.Latitude.ToString("0.0000000", Ci)).Append('\n');
                     sb.Append("      </coordinates></LineString>\n    </Placemark>\n");
                 }
@@ -58,7 +60,7 @@ namespace AgOpenGPS.Mobile.Core
             return sb.ToString();
         }
 
-        /// <summary>One MultiLineString feature per job; "times" holds the time of every point (ISO 8601, UTC).</summary>
+        /// <summary>One MultiLineString feature per job; "pieces" holds each line's start and end time (ISO 8601, UTC).</summary>
         public static string ToGeoJson(IEnumerable<JobTrack> jobs)
         {
             using (var ms = new System.IO.MemoryStream())
@@ -71,7 +73,7 @@ namespace AgOpenGPS.Mobile.Core
                     foreach (JobTrack jt in jobs.Where(j => j.HasTrack).OrderBy(j => j.Job.StartUtc))
                     {
                         Job j = jt.Job;
-                        List<List<TrackSample>> pieces = jt.Pieces.Where(p => p.Count >= 2).ToList();
+                        List<TrackPiece> pieces = jt.Pieces.Where(p => p.Points.Count >= 2).ToList();
                         w.WriteStartObject();
                         w.WriteString("type", "Feature");
                         w.WriteStartObject("properties");
@@ -82,22 +84,23 @@ namespace AgOpenGPS.Mobile.Core
                         w.WriteNumber("workedHectares", Math.Round(j.Hectares, 3));
                         w.WriteNumber("distanceKm", Math.Round(j.WorkingMeters / 1000.0, 3));
                         w.WriteNumber("implementWidthM", Math.Round(j.ImplementWidth, 2));
-                        w.WriteStartArray("times");
-                        foreach (List<TrackSample> p in pieces)
+                        w.WriteStartArray("pieces");
+                        foreach (TrackPiece p in pieces)
                         {
-                            w.WriteStartArray();
-                            foreach (TrackSample q in p) w.WriteStringValue(Iso(q.Utc));
-                            w.WriteEndArray();
+                            w.WriteStartObject();
+                            w.WriteString("start", Iso(p.StartUtc));
+                            w.WriteString("end", Iso(p.EndUtc));
+                            w.WriteEndObject();
                         }
                         w.WriteEndArray();
                         w.WriteEndObject();
                         w.WriteStartObject("geometry");
                         w.WriteString("type", "MultiLineString");
                         w.WriteStartArray("coordinates");
-                        foreach (List<TrackSample> p in pieces)
+                        foreach (TrackPiece p in pieces)
                         {
                             w.WriteStartArray();
-                            foreach (TrackSample q in p)
+                            foreach (TrackPoint q in p.Points)
                             {
                                 w.WriteStartArray();
                                 w.WriteNumberValue(Math.Round(q.Longitude, 7));

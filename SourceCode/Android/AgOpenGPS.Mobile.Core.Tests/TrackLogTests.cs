@@ -55,13 +55,16 @@ namespace AgOpenGPS.Mobile.Core.Tests
             Drive(log, n, 20);                         // about 56 m
             string id = log.Current.Id;
 
-            List<List<TrackSample>> pieces = log.Track(id);
+            List<TrackPiece> pieces = log.Track(id);
             Assert.That(pieces.Count, Is.EqualTo(2));
             // Samples come every 0.69 m, so every second one is kept: a point every 1.39 m.
-            Assert.That(pieces[0].Count, Is.InRange(55, 65));
-            Assert.That(pieces[1].Count, Is.InRange(36, 44));
-            Assert.That(pieces[0][1].Utc, Is.GreaterThan(pieces[0][0].Utc));
-            GeoPoint first = Plane.ToLocal(pieces[0][0].Latitude, pieces[0][0].Longitude);
+            Assert.That(pieces[0].Points.Count, Is.InRange(55, 65));
+            Assert.That(pieces[1].Points.Count, Is.InRange(36, 44));
+            // Only the start and end time of each piece: 30 s, a 10 s pause, then 20 s.
+            Assert.That((pieces[0].EndUtc - pieces[0].StartUtc).TotalSeconds, Is.EqualTo(29.75).Within(0.01));
+            Assert.That((pieces[1].StartUtc - pieces[0].EndUtc).TotalSeconds, Is.EqualTo(10.25).Within(0.01));
+            Assert.That((pieces[1].EndUtc - pieces[1].StartUtc).TotalSeconds, Is.EqualTo(19.75).Within(0.01));
+            GeoPoint first = Plane.ToLocal(pieces[0].Points[0].Latitude, pieces[0].Points[0].Longitude);
             Assert.That(first.Northing, Is.EqualTo(0).Within(0.01));
         }
 
@@ -71,26 +74,49 @@ namespace AgOpenGPS.Mobile.Core.Tests
             JobLog log = NewLog();
             Drive(log, 0, 20);
             string id = log.Current.Id;
-            int count = log.Track(id)[0].Count;
+            TrackPiece before = log.Track(id)[0];
             log.EndJob();
 
             JobLog again = NewLog();
-            List<List<TrackSample>> pieces = again.Track(id);
+            List<TrackPiece> pieces = again.Track(id);
             Assert.That(pieces.Count, Is.EqualTo(1));
-            Assert.That(pieces[0].Count, Is.EqualTo(count));
+            Assert.That(pieces[0].Points.Count, Is.EqualTo(before.Points.Count));
+            Assert.That(pieces[0].StartUtc, Is.EqualTo(before.StartUtc).Within(TimeSpan.FromMilliseconds(1)));
+            Assert.That(pieces[0].EndUtc, Is.EqualTo(before.EndUtc).Within(TimeSpan.FromMilliseconds(1)));
+
+            // The file holds no time per point: only "#start", "lat,lon" lines and "=end".
+            string[] lines = File.ReadAllLines(Path.Combine(_dir, "tracks", id + ".trk"));
+            Assert.That(lines.First(), Does.StartWith("#"));
+            Assert.That(lines.Last(), Does.StartWith("="));
+            Assert.That(lines.Skip(1).Take(lines.Length - 2).All(l => l.Split(',').Length == 2), Is.True);
         }
 
         [Test]
-        public void StandingStill_KeepsAPointEveryTenSeconds()
+        public void StandingStill_AddsNoPoints_ButTheEndTimeMovesOn()
         {
             JobLog log = NewLog();
-            Plane.ToWgs84(new GeoPoint(0, 0), out double lat, out double lon);
+            double n = Drive(log, 0, 5);
+            Plane.ToWgs84(new GeoPoint(n, 0), out double lat, out double lon);
+            int before = log.Track(log.Current.Id)[0].Points.Count;
+            DateTime stop = _t;
             for (int i = 0; i < 4 * 60; i++)
             {
                 log.Sample(_t, true, _field, lat, lon, 0, 6);
                 _t = _t.AddSeconds(0.25);
             }
-            Assert.That(log.Track(log.Current.Id)[0].Count, Is.InRange(6, 7));
+            TrackPiece piece = log.Track(log.Current.Id)[0];
+            Assert.That(piece.Points.Count, Is.LessThanOrEqualTo(before + 1));
+            Assert.That((piece.EndUtc - stop).TotalSeconds, Is.EqualTo(59.75).Within(0.01));
+        }
+
+        [Test]
+        public void OldTracks_WithATimeOnEveryPoint_AreStillRead()
+        {
+            var pieces = new List<TrackPiece>();
+            JobLog.ParseTrack("#\n1700000000000,45.1,16.1\n1700000005000,45.2,16.2\n", pieces);
+            Assert.That(pieces.Count, Is.EqualTo(1));
+            Assert.That(pieces[0].Points.Count, Is.EqualTo(2));
+            Assert.That((pieces[0].EndUtc - pieces[0].StartUtc).TotalSeconds, Is.EqualTo(5));
         }
 
         [Test]
@@ -119,10 +145,10 @@ namespace AgOpenGPS.Mobile.Core.Tests
         [Test]
         public void CutOffLastLine_IsIgnored()
         {
-            var pieces = new List<List<TrackSample>>();
-            JobLog.ParseTrack("#\n1700000000000,45.1,16.1\n1700000001000,45.2,16.2\n17000000020", pieces);
+            var pieces = new List<TrackPiece>();
+            JobLog.ParseTrack("#1700000000000\n45.1,16.1\n45.2,16.2\n45.3", pieces); // power lost mid-line, no "=end"
             Assert.That(pieces.Count, Is.EqualTo(1));
-            Assert.That(pieces[0].Count, Is.EqualTo(2));
+            Assert.That(pieces[0].Points.Count, Is.EqualTo(2));
         }
 
         private List<JobTrack> OneJob()
@@ -150,16 +176,17 @@ namespace AgOpenGPS.Mobile.Core.Tests
         }
 
         [Test]
-        public void GeoJson_HasCoordinatesAndTimesForEveryPoint()
+        public void GeoJson_HasCoordinates_AndStartAndEndPerPiece()
         {
             List<JobTrack> jobs = OneJob();
             using JsonDocument doc = JsonDocument.Parse(TrackExport.ToGeoJson(jobs));
             JsonElement f = doc.RootElement.GetProperty("features")[0];
             JsonElement coords = f.GetProperty("geometry").GetProperty("coordinates");
-            JsonElement times = f.GetProperty("properties").GetProperty("times");
+            JsonElement pieces = f.GetProperty("properties").GetProperty("pieces");
             Assert.That(f.GetProperty("geometry").GetProperty("type").GetString(), Is.EqualTo("MultiLineString"));
             Assert.That(coords.GetArrayLength(), Is.EqualTo(2));
-            Assert.That(times[0].GetArrayLength(), Is.EqualTo(coords[0].GetArrayLength()));
+            Assert.That(pieces.GetArrayLength(), Is.EqualTo(2), "a start and end time per line, not per point");
+            Assert.That(DateTime.Parse(pieces[1].GetProperty("start").GetString()), Is.GreaterThan(DateTime.Parse(pieces[0].GetProperty("end").GetString())));
             Assert.That(coords[0][0][1].GetDouble(), Is.EqualTo(45.815).Within(1e-6), "[lon, lat]");
             Assert.That(f.GetProperty("properties").GetProperty("field").GetString(), Is.EqualTo(_field.Name));
         }
