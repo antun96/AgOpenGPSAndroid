@@ -37,7 +37,8 @@ namespace AgOpenGPS.Droid
             var root = new FrameLayout(this);
             root.SetBackgroundColor(Color.ParseColor("#0B1A3D"));
             var picture = new CoverImageView(this);
-            picture.SetImageResource(Resource.Drawable.splash);
+            picture.SetImageResource(Resource.Drawable.splash); // landscape or portrait picture, as the tablet is held
+            _picture = picture;
             root.AddView(picture, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
 
             // A thin yellow line that fills while the app starts.
@@ -64,6 +65,15 @@ namespace AgOpenGPS.Droid
             _ui.Post(Tick);
         }
 
+        private ImageView _picture;
+
+        /// <summary>Turned while the picture shows: take the picture for the new way up.</summary>
+        public override void OnConfigurationChanged(global::Android.Content.Res.Configuration newConfig)
+        {
+            base.OnConfigurationChanged(newConfig);
+            _picture?.SetImageResource(Resource.Drawable.splash);
+        }
+
         private void GoOn()
         {
             var intent = new Intent(this, typeof(MainActivity));
@@ -87,6 +97,7 @@ namespace AgOpenGPS.Droid
         /// <summary>
         /// Fills the screen with the picture without distorting it. What does not fit is cut from the
         /// right (or evenly top and bottom), so the title in the top left corner is always complete.
+        /// There is a landscape picture (drawable-nodpi) and a portrait one (drawable-port-nodpi).
         /// </summary>
         private sealed class CoverImageView : ImageView
         {
