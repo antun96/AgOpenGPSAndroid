@@ -21,7 +21,7 @@ namespace AgOpenGPS.Droid
     /// Driving screen: fix status, the guidance view with passes and field boundary, distance off
     /// the line, edge warning, and buttons for fields, boundary recording, A / B and lines.
     /// </summary>
-    [Activity(Label = "@string/app_name", MainLauncher = true, LaunchMode = LaunchMode.SingleTask,
+    [Activity(Label = "@string/app_name", LaunchMode = LaunchMode.SingleTask,
         Theme = "@android:style/Theme.Material.Light.NoActionBar",
         ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.ScreenLayout
             | ConfigChanges.SmallestScreenSize | ConfigChanges.KeyboardHidden | ConfigChanges.Keyboard)]
