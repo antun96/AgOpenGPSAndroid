@@ -63,6 +63,12 @@ namespace AgOpenGPS.Droid
 
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
+            // ---------------------------------------------------------------- settings sections
+            ["General"] = "Općenito",
+            ["Receiver"] = "Prijemnik",
+            ["NTRIP"] = "NTRIP",
+            ["Map"] = "Karta",
+            ["Simulator"] = "Simulator",
             // ---------------------------------------------------------------- records
             ["+ Add product"] = "+ Dodaj proizvod",
             ["Against / purpose"] = "Protiv / namjena",

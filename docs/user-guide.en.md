@@ -9,8 +9,8 @@
 
 ## First setup
 
-1. Pair the ESP32 or Pi in Android's Bluetooth settings (**Settings → Pair...** opens them).
-2. Open **Settings**:
+1. Pair the ESP32 or Pi in Android's Bluetooth settings (**Settings → Receiver → Pair...** opens them).
+2. Open **Settings**. The sections are listed on the left; tap one to see it:
    - **Language**: System, English or Hrvatski. **Colours**: *Night* (dark) or *Day* (light, for bright sun).
    - **Receiver**: pick the paired device. *Connect automatically* connects at every start.
    - **Implement**: the full **implement width** and the **overlap**. Passes are width minus overlap apart.
@@ -86,7 +86,7 @@ While Work is on, the app also records the **track**: where you drove, with the 
 
 ## Satellite map
 
-**Settings → Satellite map**. Map squares are downloaded once and kept on the tablet. **Download map for the open field** fetches the whole field in advance (best over Wi-Fi), so the map also works without internet.
+**Settings → Map**. Map squares are downloaded once and kept on the tablet. **Download map for the open field** fetches the whole field in advance (best over Wi-Fi), so the map also works without internet.
 
 ## Backup
 

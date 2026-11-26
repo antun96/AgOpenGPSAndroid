@@ -407,6 +407,25 @@ namespace AgOpenGPS.Droid
 
         private int Dp(float v) => Ui.Dp(this, v);
 
+        // Sections of the screen: the chosen one is kept while the app runs (also across a language change).
+        private static int _section;
+        private readonly List<(string Name, LinearLayout Page, Button Button)> _sections = new List<(string, LinearLayout, Button)>();
+        private ScrollView _pageScroll;
+
+        private void ShowSection(int index)
+        {
+            _section = index;
+            for (int i = 0; i < _sections.Count; i++)
+            {
+                var (_, pg, b) = _sections[i];
+                bool on = i == index;
+                pg.Visibility = on ? ViewStates.Visible : ViewStates.Gone;
+                b.SetBackgroundColor(Color.ParseColor(on ? "#1565C0" : "#FAFAFA"));
+                b.SetTextColor(on ? Color.White : Color.ParseColor("#212121"));
+            }
+            _pageScroll?.ScrollTo(0, 0);
+        }
+
         private View BuildLayout()
         {
             var root = new LinearLayout(this) { Orientation = Orientation.Vertical };
@@ -423,14 +442,43 @@ namespace AgOpenGPS.Droid
             bar.AddView(title);
             root.AddView(bar);
 
-            var columns = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-            columns.SetPadding(Dp(12), Dp(12), Dp(12), Dp(12));
+            // Settings in sections: a menu on the left, the chosen section on the right.
+            var body = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+            var menu = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            menu.SetPadding(Dp(8), Dp(8), Dp(8), Dp(8));
+            var menuScroll = new ScrollView(this);
+            menuScroll.SetBackgroundColor(Color.ParseColor("#E3E7EA"));
+            menuScroll.AddView(menu);
+            body.AddView(menuScroll, new LinearLayout.LayoutParams(Dp(220), ViewGroup.LayoutParams.MatchParent));
+            var pages = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            pages.SetPadding(Dp(12), Dp(12), Dp(12), Dp(12));
+            _pageScroll = new ScrollView(this);
+            _pageScroll.AddView(pages);
+            body.AddView(_pageScroll, Ui.Weight(1, ViewGroup.LayoutParams.MatchParent));
+            _sections.Clear();
 
-            // Left column: receiver, implement.
-            LinearLayout left = Ui.Card(this);
+            // A section's page; the same name again continues the same page.
+            LinearLayout Section(string name)
+            {
+                foreach (var sec in _sections) if (sec.Name == name) return sec.Page;
+                LinearLayout pg = Ui.Card(this);
+                pg.AddView(Ui.Heading(this, name));
+                pages.AddView(pg, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent));
+                int index = _sections.Count;
+                Button b = Ui.Button(this, name, () => ShowSection(index), 52);
+                b.Gravity = GravityFlags.CenterVertical | GravityFlags.Start;
+                menu.AddView(b, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) { BottomMargin = Dp(4) });
+                _sections.Add((name, pg, b));
+                return pg;
+            }
+            // The menu order.
+            foreach (string name in new[] { "General", "Receiver", "NTRIP", "Implement", "Vehicle", "Headland", "Map", "Sound alerts", "Simulator", "Backup", "Diagnostics" })
+                Section(Tr.T(name));
+            LinearLayout page;
 
             // Language first, labelled in both languages so it can be found in either.
-            left.AddView(Ui.Heading(this, "Language / Jezik"));
+            page = Section(Tr.T("General"));
+            page.AddView(Ui.Heading(this, "Language / Jezik"));
             _language = new Spinner(this);
             var langAdapter = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleSpinnerItem,
                 new[] { "System / Sustav", "English", "Hrvatski" });
@@ -438,153 +486,144 @@ namespace AgOpenGPS.Droid
             _language.Adapter = langAdapter;
             _language.SetSelection(Math.Max(0, Array.IndexOf(LanguageCodes, AppState.Settings.Language)), false);
             _language.ItemSelected += (s, e) => ChangeLanguage(LanguageCodes[e.Position]);
-            left.AddView(_language);
+            page.AddView(_language);
 
-            left.AddView(Ui.Heading(this, Tr.T("Colours")));
+            page.AddView(Ui.Heading(this, Tr.T("Colours")));
             _colours = new Spinner(this);
             var colourAdapter = new ArrayAdapter<string>(this, global::Android.Resource.Layout.SimpleSpinnerItem,
                 new[] { Tr.T("Night (dark)"), Tr.T("Day (light, for bright sun)") });
             colourAdapter.SetDropDownViewResource(global::Android.Resource.Layout.SimpleSpinnerDropDownItem);
             _colours.Adapter = colourAdapter;
             _colours.SetSelection(AppState.Settings.DayColours ? 1 : 0, false);
-            left.AddView(_colours);
+            page.AddView(_colours);
 
-            left.AddView(Ui.Heading(this, Tr.T("Receiver (Bluetooth)")));
+            page = Section(Tr.T("Receiver"));
             _devices = new Spinner(this);
-            left.AddView(_devices);
+            page.AddView(_devices);
             var devButtons = new LinearLayout(this) { Orientation = Orientation.Horizontal };
             devButtons.AddView(Ui.Button(this, Tr.T("Refresh"), LoadPairedDevices), Ui.Weight(1));
             devButtons.AddView(Ui.Button(this, Tr.T("Pair..."), () => StartActivity(new Intent(global::Android.Provider.Settings.ActionBluetoothSettings))), Ui.Weight(1));
-            left.AddView(devButtons);
+            page.AddView(devButtons);
             _autoConnect = new CheckBox(this) { Text = Tr.T("Connect automatically when the app starts") };
-            left.AddView(_autoConnect);
+            page.AddView(_autoConnect);
 
-            left.AddView(Ui.Heading(this, Tr.T("Implement")));
-            _width = Ui.Field(this, left, Tr.T("Implement width (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            left.AddView(Ui.Hint(this, Tr.T("The real full width of the implement. The worked area always uses the full width.")));
-            _overlap = Ui.Field(this, left, Tr.T("Overlap (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            left.AddView(Ui.Hint(this, Tr.T("Only for the spacing between passes: passes are implement width minus overlap apart.")));
+            page = Section(Tr.T("Implement"));
+            _width = Ui.Field(this, page, Tr.T("Implement width (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            page.AddView(Ui.Hint(this, Tr.T("The real full width of the implement. The worked area always uses the full width.")));
+            _overlap = Ui.Field(this, page, Tr.T("Overlap (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            page.AddView(Ui.Hint(this, Tr.T("Only for the spacing between passes: passes are implement width minus overlap apart.")));
             _workingWidth = Ui.Hint(this, "");
-            left.AddView(_workingWidth);
+            page.AddView(_workingWidth);
             _width.TextChanged += (s, e) => UpdateWorkingWidth();
             _overlap.TextChanged += (s, e) => UpdateWorkingWidth();
-            left.AddView(Ui.Hint(this, Tr.T("Guidance is for the antenna position.")));
+            page.AddView(Ui.Hint(this, Tr.T("Guidance is for the antenna position.")));
 
-            left.AddView(Ui.Heading(this, Tr.T("Vehicle")));
-            left.AddView(Ui.Hint(this, Tr.T("Metres. Measure from the middle of the rear axle. Left / behind = negative.")));
+            page = Section(Tr.T("Vehicle"));
+            page.AddView(Ui.Hint(this, Tr.T("Metres. Measure from the middle of the rear axle. Left / behind = negative.")));
             InputTypes signed = InputTypes.ClassNumber | InputTypes.NumberFlagDecimal | InputTypes.NumberFlagSigned;
-            _antHeight = Ui.Field(this, left, Tr.T("Antenna height above ground (corrects tilt on slopes; needs roll from the receiver)"), signed);
-            _antForward = Ui.Field(this, left, Tr.T("Antenna ahead of the rear axle"), signed);
-            _antRight = Ui.Field(this, left, Tr.T("Antenna right of the centre line"), signed);
-            _toolBehind = Ui.Field(this, left, Tr.T("Implement working line behind the rear axle (front mounted = negative)"), signed);
-            _toolRight = Ui.Field(this, left, Tr.T("Implement centre right of the tractor centre line"), signed);
-            _wheelbase = Ui.Field(this, left, Tr.T("Wheelbase (simulator and steering)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            left.AddView(Ui.Hint(this, Tr.T("Guidance follows the implement's centre line; the worked area is painted where the implement works.")));
-            _nudgeStep = Ui.Field(this, left, Tr.T("Nudge step (cm)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            _antHeight = Ui.Field(this, page, Tr.T("Antenna height above ground (corrects tilt on slopes; needs roll from the receiver)"), signed);
+            _antForward = Ui.Field(this, page, Tr.T("Antenna ahead of the rear axle"), signed);
+            _antRight = Ui.Field(this, page, Tr.T("Antenna right of the centre line"), signed);
+            _toolBehind = Ui.Field(this, page, Tr.T("Implement working line behind the rear axle (front mounted = negative)"), signed);
+            _toolRight = Ui.Field(this, page, Tr.T("Implement centre right of the tractor centre line"), signed);
+            _wheelbase = Ui.Field(this, page, Tr.T("Wheelbase (simulator and steering)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            page.AddView(Ui.Hint(this, Tr.T("Guidance follows the implement's centre line; the worked area is painted where the implement works.")));
+            _nudgeStep = Ui.Field(this, page, Tr.T("Nudge step (cm)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
 
-            left.AddView(Ui.Heading(this, Tr.T("Headland")));
-            _headlandWidth = Ui.Field(this, left, Tr.T("Headland width (m, 0 = no headland)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            left.AddView(Ui.Hint(this, Tr.T("A strip of this width along the field boundary, drawn as a dashed line. Usually a multiple of the implement width.")));
+            page = Section(Tr.T("Headland"));
+            _headlandWidth = Ui.Field(this, page, Tr.T("Headland width (m, 0 = no headland)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            page.AddView(Ui.Hint(this, Tr.T("A strip of this width along the field boundary, drawn as a dashed line. Usually a multiple of the implement width.")));
             _autoHeadland = new CheckBox(this) { Text = Tr.T("Work off in the headland, on again in the main part") };
-            left.AddView(_autoHeadland);
-            left.AddView(Ui.Hint(this, Tr.T("Only after you switched Work on yourself; switching it off by hand ends the automatic until the next Work: ON.")));
+            page.AddView(_autoHeadland);
+            page.AddView(Ui.Hint(this, Tr.T("Only after you switched Work on yourself; switching it off by hand ends the automatic until the next Work: ON.")));
 
-            left.AddView(Ui.Heading(this, Tr.T("Sound alerts")));
-            left.AddView(Ui.Hint(this, Tr.T("Each alert sounds once per event, on the alarm channel (also with the tablet on silent).")));
+            page = Section(Tr.T("Sound alerts"));
+            page.AddView(Ui.Hint(this, Tr.T("Each alert sounds once per event, on the alarm channel (also with the tablet on silent).")));
             void AlertBox(AlertKind kind, string text)
             {
                 var cb = new CheckBox(this) { Text = Tr.T(text) };
                 _alertBoxes[kind] = cb;
-                left.AddView(cb);
+                page.AddView(cb);
             }
             AlertBox(AlertKind.FieldEdge, "Field edge ahead");
             AlertBox(AlertKind.HeadlandAhead, "Headland ahead");
-            _alertEdge = Ui.Field(this, left, Tr.T("Warn this far from the edge (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            _alertEdge = Ui.Field(this, page, Tr.T("Warn this far from the edge (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
             AlertBox(AlertKind.LeftField, "Left the field");
             AlertBox(AlertKind.RtkLost, "RTK Fix lost");
             AlertBox(AlertKind.RtkBack, "RTK Fix is back");
             AlertBox(AlertKind.CorrectionsStopped, "NTRIP corrections stopped (15 s)");
             AlertBox(AlertKind.LinkLost, "Connection to the receiver lost");
             AlertBox(AlertKind.OffLine, "Off the line");
-            _alertOffLine = Ui.Field(this, left, Tr.T("Off the line after (cm, for 2 s, when moving)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            left.AddView(Ui.Button(this, Tr.T("Test sound"), () =>
+            _alertOffLine = Ui.Field(this, page, Tr.T("Off the line after (cm, for 2 s, when moving)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
+            page.AddView(Ui.Button(this, Tr.T("Test sound"), () =>
             {
                 AppState.Sounds.Play(AlertKind.RtkLost);
                 Toast.MakeText(this, Tr.T("Too quiet? Turn up the alarm volume of the tablet."), ToastLength.Long).Show();
             }));
 
-            left.AddView(Ui.Heading(this, Tr.T("Worked area")));
+            page = Section(Tr.T("Map"));
+            page.AddView(Ui.Heading(this, Tr.T("Worked area")));
             _recordCoverage = new CheckBox(this) { Text = Tr.T("Record worked area (Work button, statistics)") };
-            left.AddView(_recordCoverage);
+            page.AddView(_recordCoverage);
             _showCoverage = new CheckBox(this) { Text = Tr.T("Show worked area on the map") };
-            left.AddView(_showCoverage);
+            page.AddView(_showCoverage);
             _recordCoverage.CheckedChange += (s, e) => _showCoverage.Enabled = e.IsChecked;
-            left.AddView(Ui.Hint(this, Tr.T("Recording uses very little; on a slow tablet hide it from the map first.")));
+            page.AddView(Ui.Hint(this, Tr.T("Recording uses very little; on a slow tablet hide it from the map first.")));
 
-            left.AddView(Ui.Heading(this, Tr.T("Diagnostics")));
+            page = Section(Tr.T("Diagnostics"));
             _status = Ui.Text(this, 14);
-            left.AddView(_status);
+            page.AddView(_status);
             _rawLog = new CheckBox(this) { Text = Tr.T("Show raw NMEA") };
-            left.AddView(_rawLog);
+            page.AddView(_rawLog);
             _raw = Ui.Text(this, 12);
             _raw.Typeface = Typeface.Monospace;
-            left.AddView(_raw);
+            page.AddView(_raw);
 
-            var leftScroll = new ScrollView(this);
-            leftScroll.AddView(left);
-            columns.AddView(leftScroll, Ui.Weight(1, ViewGroup.LayoutParams.MatchParent));
-
-            // Right column: NTRIP.
-            LinearLayout right = Ui.Card(this);
-            right.AddView(Ui.Heading(this, Tr.T("NTRIP corrections")));
+            page = Section(Tr.T("NTRIP"));
             _ntripEnabled = new CheckBox(this) { Text = Tr.T("Send NTRIP corrections to the receiver over Bluetooth") };
-            right.AddView(_ntripEnabled);
-            right.AddView(Ui.Hint(this, Tr.T("Turn off if the Raspberry Pi or receiver gets corrections itself.")));
-            _host = Ui.Field(this, right, Tr.T("Caster host"), InputTypes.ClassText | InputTypes.TextVariationUri);
-            _port = Ui.Field(this, right, "Port", InputTypes.ClassNumber);
-            _mount = Ui.Field(this, right, "Mountpoint", InputTypes.ClassText);
-            _user = Ui.Field(this, right, Tr.T("User"), InputTypes.ClassText);
-            _password = Ui.Field(this, right, Tr.T("Password"), InputTypes.ClassText | InputTypes.TextVariationPassword);
-            _gga = Ui.Field(this, right, Tr.T("Send GGA every (s, 0 = once)"), InputTypes.ClassNumber);
-            right.AddView(Ui.Hint(this, Tr.T("Changes apply when you leave this screen; a running connection reconnects.")));
+            page.AddView(_ntripEnabled);
+            page.AddView(Ui.Hint(this, Tr.T("Turn off if the Raspberry Pi or receiver gets corrections itself.")));
+            _host = Ui.Field(this, page, Tr.T("Caster host"), InputTypes.ClassText | InputTypes.TextVariationUri);
+            _port = Ui.Field(this, page, "Port", InputTypes.ClassNumber);
+            _mount = Ui.Field(this, page, "Mountpoint", InputTypes.ClassText);
+            _user = Ui.Field(this, page, Tr.T("User"), InputTypes.ClassText);
+            _password = Ui.Field(this, page, Tr.T("Password"), InputTypes.ClassText | InputTypes.TextVariationPassword);
+            _gga = Ui.Field(this, page, Tr.T("Send GGA every (s, 0 = once)"), InputTypes.ClassNumber);
+            page.AddView(Ui.Hint(this, Tr.T("Changes apply when you leave this screen; a running connection reconnects.")));
 
-            right.AddView(Ui.Heading(this, "Simulator"));
+            page = Section(Tr.T("Simulator"));
             _useSim = new CheckBox(this) { Text = Tr.T("Use the simulator instead of the receiver") };
-            right.AddView(_useSim);
-            right.AddView(Ui.Hint(this, Tr.T("A virtual tractor with RTK fix, to try everything at home. Speed and steering on the driving screen.")));
-            _simLat = Ui.Field(this, right, Tr.T("Start latitude (empty = open field or last position)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal | InputTypes.NumberFlagSigned);
-            _simLon = Ui.Field(this, right, Tr.T("Start longitude"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal | InputTypes.NumberFlagSigned);
+            page.AddView(_useSim);
+            page.AddView(Ui.Hint(this, Tr.T("A virtual tractor with RTK fix, to try everything at home. Speed and steering on the driving screen.")));
+            _simLat = Ui.Field(this, page, Tr.T("Start latitude (empty = open field or last position)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal | InputTypes.NumberFlagSigned);
+            _simLon = Ui.Field(this, page, Tr.T("Start longitude"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal | InputTypes.NumberFlagSigned);
 
-            right.AddView(Ui.Heading(this, Tr.T("Satellite map")));
+            page = Section(Tr.T("Map"));
+            page.AddView(Ui.Heading(this, Tr.T("Satellite map")));
             _showMap = new CheckBox(this) { Text = Tr.T("Show the satellite map") };
-            right.AddView(_showMap);
-            right.AddView(Ui.Hint(this, Tr.T("Each map square is downloaded once and kept on the tablet; it works without internet afterwards.")));
+            page.AddView(_showMap);
+            page.AddView(Ui.Hint(this, Tr.T("Each map square is downloaded once and kept on the tablet; it works without internet afterwards.")));
             var mapButtons = new LinearLayout(this) { Orientation = Orientation.Horizontal };
             mapButtons.AddView(Ui.Button(this, Tr.T("Download map for the open field"), DownloadFieldMap), Ui.Weight(2));
             mapButtons.AddView(Ui.Button(this, Tr.T("Clear map cache"), ClearMapCache), Ui.Weight(1));
-            right.AddView(mapButtons);
+            page.AddView(mapButtons);
             _mapStatus = Ui.Hint(this, "");
-            right.AddView(_mapStatus);
-            _mapUrl = Ui.Field(this, right, Tr.T("Map source (tile URL with {z} {x} {y})"), InputTypes.ClassText | InputTypes.TextVariationUri);
-            _mapAttribution = Ui.Field(this, right, Tr.T("Attribution shown on the map"), InputTypes.ClassText);
-            _mapMaxZoom = Ui.Field(this, right, Tr.T("Most detailed zoom to download (10-22, default 19)"), InputTypes.ClassNumber);
-            right.AddView(Ui.Hint(this, Tr.T("If close-up imagery is missing or grey in your area, try 18 or 17. Closer than this, the map is enlarged.")));
-            right.AddView(Ui.Hint(this, Tr.T("Default: Esri World Imagery, free with attribution. Check the source's terms, especially for commercial use.")));
+            page.AddView(_mapStatus);
+            _mapUrl = Ui.Field(this, page, Tr.T("Map source (tile URL with {z} {x} {y})"), InputTypes.ClassText | InputTypes.TextVariationUri);
+            _mapAttribution = Ui.Field(this, page, Tr.T("Attribution shown on the map"), InputTypes.ClassText);
+            _mapMaxZoom = Ui.Field(this, page, Tr.T("Most detailed zoom to download (10-22, default 19)"), InputTypes.ClassNumber);
+            page.AddView(Ui.Hint(this, Tr.T("If close-up imagery is missing or grey in your area, try 18 or 17. Closer than this, the map is enlarged.")));
+            page.AddView(Ui.Hint(this, Tr.T("Default: Esri World Imagery, free with attribution. Check the source's terms, especially for commercial use.")));
 
-            right.AddView(Ui.Heading(this, Tr.T("Backup")));
-            right.AddView(Ui.Hint(this, Tr.T("One file with everything: all settings, fields, lines, jobs, tracks and worked areas, to move to another tablet (also under Records → Data). Contains the NTRIP password: keep it private.")));
+            page = Section(Tr.T("Backup"));
+            page.AddView(Ui.Hint(this, Tr.T("One file with everything: all settings, fields, lines, jobs, tracks and worked areas, to move to another tablet (also under Records → Data). Contains the NTRIP password: keep it private.")));
             var backup = new LinearLayout(this) { Orientation = Orientation.Horizontal };
             backup.AddView(Ui.Button(this, Tr.T("Save backup"), SaveBackup), Ui.Weight(1));
             backup.AddView(Ui.Button(this, Tr.T("Restore backup"), PickBackup), Ui.Weight(1));
-            right.AddView(backup);
+            page.AddView(backup);
 
-            var rightScroll = new ScrollView(this);
-            rightScroll.AddView(right);
-            var rp = Ui.Weight(1, ViewGroup.LayoutParams.MatchParent);
-            rp.LeftMargin = Dp(12);
-            columns.AddView(rightScroll, rp);
-
-            root.AddView(columns, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
+            root.AddView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
+            ShowSection(Math.Min(_section, _sections.Count - 1));
             return root;
         }
     }

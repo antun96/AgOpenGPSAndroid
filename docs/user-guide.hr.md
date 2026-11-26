@@ -9,8 +9,8 @@
 
 ## Prvo postavljanje
 
-1. Uparite ESP32 ili Pi u Bluetooth postavkama Androida (**Postavke → Upari...** ih otvara).
-2. Otvorite **Postavke**:
+1. Uparite ESP32 ili Pi u Bluetooth postavkama Androida (**Postavke → Prijemnik → Upari...** ih otvara).
+2. Otvorite **Postavke**. Odjeljci su popisani lijevo; dodirnite jedan da ga vidite:
    - **Jezik**: Sustav, English ili Hrvatski. **Boje**: *Noć* (tamno) ili *Dan* (svijetlo, za jako sunce).
    - **Prijemnik**: odaberite upareni uređaj. *Automatski se spoji* spaja se pri svakom pokretanju.
    - **Priključak**: puna **širina priključka** i **preklop**. Prohodi su razmaknuti za širinu umanjenu za preklop.
@@ -86,7 +86,7 @@ Dok je Rad uključen, aplikacija snima i **trag**: kuda ste vozili, s vremenom p
 
 ## Satelitska karta
 
-**Postavke → Satelitska karta**. Kvadrati karte preuzimaju se jednom i čuvaju na tabletu. **Preuzmi kartu za otvorenu parcelu** unaprijed preuzima cijelu parcelu (najbolje preko Wi-Fi mreže), pa karta radi i bez interneta.
+**Postavke → Karta**. Kvadrati karte preuzimaju se jednom i čuvaju na tabletu. **Preuzmi kartu za otvorenu parcelu** unaprijed preuzima cijelu parcelu (najbolje preko Wi-Fi mreže), pa karta radi i bez interneta.
 
 ## Sigurnosna kopija
 
