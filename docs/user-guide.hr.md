@@ -10,7 +10,7 @@
 ## Prvo postavljanje
 
 1. Uparite ESP32 ili Pi u Bluetooth postavkama Androida (**Postavke → Prijemnik → Upari...** ih otvara).
-2. Otvorite **Postavke**. Odjeljci su popisani lijevo; dodirnite jedan da ga vidite:
+2. Otvorite **☰ Izbornik → Postavke**. Odjeljci su popisani lijevo; dodirnite jedan da ga vidite:
    - **Jezik**: Sustav, English ili Hrvatski. **Boje**: *Noć* (tamno) ili *Dan* (svijetlo, za jako sunce).
    - **Prijemnik**: odaberite upareni uređaj. *Automatski se spoji* spaja se pri svakom pokretanju.
    - **Priključak**: puna **širina priključka** i **preklop**. Prohodi su razmaknuti za širinu umanjenu za preklop.
@@ -23,13 +23,18 @@
 - **Oznaka** (gore lijevo): **RTK Fix** zeleno = centimetarska točnost, **RTK Float** narančasto = oko 30 cm, **GPS** = 1–2 m.
 - **Svjetlosna traka** (gore): upaljena polja pokazuju na koju stranu i koliko upravljati. Upaljena samo sredina = na smjeru.
 - **◀ 12 cm**: 12 cm ste desno od linije, upravljajte lijevo. Zeleno ispod 5 cm, žuto ispod 15 cm, crveno iznad.
-- **Karta**: dva prsta ili **+ / −** za povećanje, povlačenje za pomicanje. **Prati** vraća na traktor, **Parcela** prikazuje cijelu parcelu.
+- **Karta**: dva prsta ili **+ / −** za povećanje, povlačenje za pomicanje. **Parcela** prikazuje cijelu parcelu. Kad pomaknete kartu, pojavi se narančasti gumb **Prati**: vraća na traktor.
 - **3D**: naginje kartu pa vidite daleko naprijed (ponovno za više, zatim **2D** za ravno). Ili povucite dva prsta gore ili dolje.
 - **Kompas** (okrugli gumb, crvena igla = sjever): dodir za sjever gore, ponovni dodir da se karta okreće s traktorom. Okretanjem dva prsta kartu okrećete rukom.
+- Desna ploča, kartica **Vožnja**: **Rad**, statistika, **Pomak**, **Poslovi...** te koja su parcela i linija u uporabi.
+- Kartica **Parcela**: odabir parcele, snimanje međe (**Kut** i **Poništi** u načinu kutova).
+- Kartica **Linije**: **Ravna** ili **Krivulja**, **A** i **B** te spremljene **Linije...**.
+- Snimanje međe ili linije samo otvara svoju karticu; kad završi, vraćate se na **Vožnja**.
+- **☰ Izbornik** (gore desno): **Evidencija**, **Postavke** i **Pomoć**.
 
 ## Parcele
 
-- **Parcela: ...** (desna ploča) otvara popis: **Nova parcela**, otvori, preimenuj, obriši.
+- **Parcela: ...** (na kartici **Parcela**) otvara popis: **Nova parcela**, otvori, preimenuj, obriši.
 - **Uvezi iz datoteke** učitava obrise parcela (GeoJSON ili KML). **Izvezi** sprema parcele s međama i linijama u datoteku, kao sigurnosnu kopiju ili za drugi tablet.
 
 ### Snimanje međe

@@ -10,7 +10,7 @@
 ## First setup
 
 1. Pair the ESP32 or Pi in Android's Bluetooth settings (**Settings → Receiver → Pair...** opens them).
-2. Open **Settings**. The sections are listed on the left; tap one to see it:
+2. Open **☰ Menu → Settings**. The sections are listed on the left; tap one to see it:
    - **Language**: System, English or Hrvatski. **Colours**: *Night* (dark) or *Day* (light, for bright sun).
    - **Receiver**: pick the paired device. *Connect automatically* connects at every start.
    - **Implement**: the full **implement width** and the **overlap**. Passes are width minus overlap apart.
@@ -23,13 +23,18 @@
 - **Badge** (top left): **RTK Fix** green = centimetre accuracy, **RTK Float** orange = about 30 cm, **GPS** = 1–2 m.
 - **Lightbar** (top): the lit segments show which way and how much to steer. Only the centre lit = on course.
 - **◀ 12 cm**: you are 12 cm right of the line, steer left. Green under 5 cm, yellow under 15 cm, red above.
-- **Map**: pinch or **+ / −** to zoom, drag to look around. **Follow** returns to the tractor, **Field** shows the whole field.
+- **Map**: pinch or **+ / −** to zoom, drag to look around. **Field** shows the whole field. After you moved the map, an orange **Follow** button appears: it returns to the tractor.
 - **3D**: tilts the map so you see far ahead (press again for more, then **2D** for flat). Or slide two fingers up or down.
 - **Compass** (round button, red needle = north): tap for north up, tap again to turn with the tractor. Twisting two fingers turns the map by hand.
+- Right panel, tab **Drive**: **Work**, the statistics, **Nudge**, **Jobs...**, and which field and line are in use.
+- Tab **Field**: choose the field, record its boundary (**Corner** and **Undo** in corner mode).
+- Tab **Lines**: **Straight** or **Curve**, **A** and **B**, and the saved **Lines...**.
+- Recording a boundary or a line opens its tab by itself; when it is done, you are back on **Drive**.
+- **☰ Menu** (top right): **Records**, **Settings** and **Help**.
 
 ## Fields
 
-- **Field: ...** (right panel) opens the list: **New field**, open, rename, delete.
+- **Field: ...** (on the **Field** tab) opens the list: **New field**, open, rename, delete.
 - **Import from file** reads field outlines (GeoJSON or KML). **Export** saves fields with their boundaries and lines to a file, as a backup or for another tablet.
 
 ### Recording the boundary

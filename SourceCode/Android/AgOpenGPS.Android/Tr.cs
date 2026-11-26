@@ -63,6 +63,13 @@ namespace AgOpenGPS.Droid
 
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
+            // ---------------------------------------------------------------- driving screen tabs
+            ["Boundary"] = "Međa",
+            ["Drive"] = "Vožnja",
+            ["Line: {0}"] = "Linija: {0}",
+            ["Menu"] = "Izbornik",
+            ["No line: open the Lines tab"] = "Nema linije: otvorite karticu Linije",
+            ["Saved lines"] = "Spremljene linije",
             // ---------------------------------------------------------------- settings sections
             ["General"] = "Općenito",
             ["Receiver"] = "Prijemnik",

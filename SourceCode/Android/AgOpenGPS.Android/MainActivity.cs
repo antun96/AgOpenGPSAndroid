@@ -42,6 +42,14 @@ namespace AgOpenGPS.Droid
         private TextView _fixBadge, _fixInfo, _xte, _lineInfo, _edge, _accuracy, _recordInfo, _stats;
         private LightbarView _lightbar;
         private LinearLayout _simPanel, _cornerRow;
+        // Right panel in three tabs: driving (default), field set-up, line set-up.
+        private enum PanelTab { Drive, Field, Lines }
+        private static PanelTab _panelTab = PanelTab.Drive;
+        private readonly Dictionary<PanelTab, (LinearLayout Page, Button Button)> _panelTabs = new Dictionary<PanelTab, (LinearLayout, Button)>();
+        private bool _wasRecordingBoundary, _wasRecordingLine;
+        private TextView _driveInfo;
+        private HorizontalScrollView _simScroll;
+        private ScrollView _panelScroll;
         private Button _followButton, _tiltButton;
         private CompassView _compass;
         private TextView _simSpeed;
@@ -598,8 +606,10 @@ namespace AgOpenGPS.Droid
 
             // Tr.T("Follow") stands out while the map was moved by hand.
             bool following = _view.Following;
-            _followButton.SetBackgroundColor(Color.ParseColor(following ? "#E0E0E0" : "#FB8C00"));
-            _followButton.SetTextColor(following ? Color.ParseColor("#212121") : Color.White);
+            // Follow is only needed after the map was moved by hand: then it shows, in orange.
+            _followButton.Visibility = following ? ViewStates.Gone : ViewStates.Visible;
+            _followButton.SetBackgroundColor(Color.ParseColor("#FB8C00"));
+            _followButton.SetTextColor(Color.White);
 
             bool coverageOn = AppState.Settings.RecordCoverage;
             _view.ShowCoverage = coverageOn && AppState.Settings.ShowCoverage;
@@ -676,8 +686,12 @@ namespace AgOpenGPS.Droid
             }
             else _edge.Visibility = ViewStates.Gone;
 
+            FollowRecording(g);
+
             // Field and boundary buttons.
             Field field = g.ActiveField;
+            _driveInfo.Text = (field == null ? Tr.T("No field open") : Tr.F("Field: {0}", field.Name))
+                + "\n" + (g.ActiveLine == null ? Tr.T("No line: open the Lines tab") : Tr.F("Line: {0}", g.ActiveLine.Name));
             _field.Text = field == null ? Tr.T("Field: none") : Tr.F("Field: {0}", field.Name
                 + (field.HasBoundary ? "  " + field.AreaHectares.ToString("0.0", Inv) + " ha" : ""));
             _boundary.Text = g.RecordingBoundary ? Tr.T("Finish boundary") : field != null && field.HasBoundary ? Tr.T("New boundary") : Tr.T("Record boundary");
@@ -729,6 +743,7 @@ namespace AgOpenGPS.Droid
         {
             GnssSimulator sim = AppState.Simulator;
             _simPanel.Visibility = sim == null ? ViewStates.Gone : ViewStates.Visible;
+            _simScroll.Visibility = _simPanel.Visibility;
             if (sim == null) return;
             _simSpeed.Text = string.Format(Inv, "{0:0} km/h\n{1:+0;-0;0}°", sim.SpeedKmh, sim.WheelAngle);
             _simAuto.Text = sim.AutoSteer ? Tr.T("Auto ON") : "Auto";
@@ -768,6 +783,30 @@ namespace AgOpenGPS.Droid
 
         private int Dp(float v) => Ui.Dp(this, v);
 
+        private void ShowPanel(PanelTab tab)
+        {
+            _panelTab = tab;
+            foreach (var kv in _panelTabs)
+            {
+                bool on = kv.Key == tab;
+                kv.Value.Page.Visibility = on ? ViewStates.Visible : ViewStates.Gone;
+                kv.Value.Button.SetBackgroundColor(Color.ParseColor(on ? "#1565C0" : "#E0E0E0"));
+                kv.Value.Button.SetTextColor(on ? Color.White : Color.ParseColor("#212121"));
+            }
+            _panelScroll?.ScrollTo(0, 0);
+        }
+
+        /// <summary>Recording a boundary shows the Field tab, recording a line the Lines tab; when it ends, back to Drive.</summary>
+        private void FollowRecording(GuidanceSnapshot g)
+        {
+            if (g.RecordingBoundary && !_wasRecordingBoundary) ShowPanel(PanelTab.Field);
+            else if (!g.RecordingBoundary && _wasRecordingBoundary) ShowPanel(PanelTab.Drive);
+            if (g.Recording && !_wasRecordingLine) ShowPanel(PanelTab.Lines);
+            else if (!g.Recording && _wasRecordingLine && g.ActiveLine != null) ShowPanel(PanelTab.Drive);
+            _wasRecordingBoundary = g.RecordingBoundary;
+            _wasRecordingLine = g.Recording;
+        }
+
         private TextView Label(string text)
         {
             TextView t = Ui.Text(this, 14, false, Palette.PanelLabel);
@@ -797,9 +836,22 @@ namespace AgOpenGPS.Droid
             bar.AddView(_fixInfo, Ui.Weight(1));
             _connect = Ui.Button(this, Tr.T("Connect"), OnConnectClicked, 48);
             bar.AddView(_connect);
-            bar.AddView(Ui.Button(this, Tr.T("Records"), () => StartActivity(new Intent(this, typeof(RecordsActivity))), 48));
-            bar.AddView(Ui.Button(this, Tr.T("Help"), () => StartActivity(new Intent(this, typeof(HelpActivity))), 48));
-            bar.AddView(Ui.Button(this, Tr.T("Settings"), () => StartActivity(new Intent(this, typeof(SettingsActivity))), 48));
+            // Records, Help and Settings under one menu: more room for the fix and the info line.
+            Button menuButton = null;
+            menuButton = Ui.Button(this, "☰ " + Tr.T("Menu"), () =>
+            {
+                var menu = new PopupMenu(this, menuButton);
+                menu.Menu.Add(0, 1, 0, Tr.T("Records"));
+                menu.Menu.Add(0, 2, 1, Tr.T("Settings"));
+                menu.Menu.Add(0, 3, 2, Tr.T("Help"));
+                menu.MenuItemClick += (s, e) =>
+                {
+                    Type screen = e.Item.ItemId == 1 ? typeof(RecordsActivity) : e.Item.ItemId == 2 ? typeof(SettingsActivity) : typeof(HelpActivity);
+                    StartActivity(new Intent(this, screen));
+                };
+                menu.Show();
+            }, 48);
+            bar.AddView(menuButton);
             root.AddView(bar);
 
             var body = new LinearLayout(this) { Orientation = Orientation.Horizontal };
@@ -831,31 +883,35 @@ namespace AgOpenGPS.Droid
             overlay.AddView(_accuracy, ap);
             frame.AddView(overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent, GravityFlags.Top));
 
-            // Map controls, right edge: compass, zoom, tilt, whole field, back to following the tractor.
+            // Map controls, right edge: a narrow column of small square buttons (compass, zoom, tilt,
+            // whole field). Follow appears only when the map was moved away from the tractor.
+            const int MapButtonDp = 58;
             var mapButtons = new LinearLayout(this) { Orientation = Orientation.Vertical };
             mapButtons.SetGravity(GravityFlags.CenterHorizontal);
             _compass = new CompassView(this);
             _compass.Click += (s, e) => _view.ToggleNorthUp();
-            mapButtons.AddView(_compass, new LinearLayout.LayoutParams(Dp(56), Dp(56)) { BottomMargin = Dp(6) });
-            Button MapButton(string text, Action onClick)
+            mapButtons.AddView(_compass, new LinearLayout.LayoutParams(Dp(52), Dp(52)) { BottomMargin = Dp(6) });
+            Button MapButton(string text, Action onClick, float textSp = 20)
             {
                 Button b = Ui.Button(this, text, onClick, 52);
-                b.SetMinWidth(Dp(64));
-                b.SetMinimumWidth(Dp(64));
+                b.SetTextSize(global::Android.Util.ComplexUnitType.Sp, textSp);
+                b.SetPadding(0, 0, 0, 0);
+                b.SetMinWidth(0);
+                b.SetMinimumWidth(0);
                 b.Alpha = 0.92f;
-                mapButtons.AddView(b, new LinearLayout.LayoutParams(Dp(96), ViewGroup.LayoutParams.WrapContent) { BottomMargin = Dp(4) });
+                mapButtons.AddView(b, new LinearLayout.LayoutParams(Dp(MapButtonDp), Dp(52)) { BottomMargin = Dp(4) });
                 return b;
             }
-            MapButton("+", () => _view.ZoomBy(1.5));
-            MapButton("−", () => _view.ZoomBy(1 / 1.5));
-            _tiltButton = MapButton("3D", () => _view.CycleTilt());
+            MapButton("+", () => _view.ZoomBy(1.5), 24);
+            MapButton("−", () => _view.ZoomBy(1 / 1.5), 24);
+            _tiltButton = MapButton("3D", () => _view.CycleTilt(), 16);
             MapButton(Tr.T("Field"), () =>
             {
                 if (!_view.ShowWholeField()) Toast_(Tr.T("Open a field with a boundary, or select a line"));
-            });
-            _followButton = MapButton(Tr.T("Follow"), () => _view.Follow());
+            }, 13);
+            _followButton = MapButton(Tr.T("Follow"), () => _view.Follow(), 13);
             var mp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent,
-                GravityFlags.Right | GravityFlags.CenterVertical) { RightMargin = Dp(8) };
+                GravityFlags.Right | GravityFlags.CenterVertical) { RightMargin = Dp(6) };
             frame.AddView(mapButtons, mp);
 
             // Simulator controls, bottom left, only while the simulator drives.
@@ -880,40 +936,82 @@ namespace AgOpenGPS.Droid
                 else Toast_(Tr.T("Open a field with a boundary first"));
             }, 48));
             _simPanel.Visibility = ViewStates.Gone;
-            var sp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent, GravityFlags.Bottom | GravityFlags.Left)
-            { LeftMargin = Dp(8), BottomMargin = Dp(24) };
-            frame.AddView(_simPanel, sp);
+            // Never under the map buttons: it stops left of their column and scrolls sideways if the map is narrow.
+            _simScroll = new HorizontalScrollView(this) { HorizontalScrollBarEnabled = false };
+            _simScroll.AddView(_simPanel);
+            var sp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent, GravityFlags.Bottom | GravityFlags.Left)
+            { LeftMargin = Dp(8), RightMargin = Dp(MapButtonDp + 14), BottomMargin = Dp(24) };
+            frame.AddView(_simScroll, sp);
             body.AddView(frame, Ui.Weight(1, ViewGroup.LayoutParams.MatchParent));
 
-            // Right panel.
-            var panel = new LinearLayout(this) { Orientation = Orientation.Vertical };
-            panel.SetPadding(Dp(8), 0, Dp(8), Dp(8));
+            // Right panel: tabs, then the chosen tab's page.
+            var side = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            var tabRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+            tabRow.SetPadding(Dp(6), Dp(4), Dp(6), 0);
+            side.AddView(tabRow);
+            _recordInfo = Ui.Text(this, 14, false, Palette.RecordText); // what is being recorded, on every tab
+            _recordInfo.SetPadding(Dp(8), Dp(2), Dp(8), 0);
+            side.AddView(_recordInfo);
+            var pages = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            LinearLayout Page(PanelTab tab, string title)
+            {
+                var pg = new LinearLayout(this) { Orientation = Orientation.Vertical };
+                pg.SetPadding(Dp(8), 0, Dp(8), Dp(8));
+                pages.AddView(pg);
+                Button b = Ui.Button(this, title, () => ShowPanel(tab), 44);
+                b.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 15);
+                tabRow.AddView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1) { RightMargin = Dp(2) });
+                _panelTabs[tab] = (pg, b);
+                return pg;
+            }
 
+            // --- Drive: what is used while working.
+            LinearLayout panel = Page(PanelTab.Drive, Tr.T("Drive"));
             _workLabel = Label(Tr.T("Implement"));
             panel.AddView(_workLabel);
-            _work = Ui.Button(this, Tr.T("Work: OFF"), () => AppState.SetWorking(!AppState.Guidance.Working), 64);
+            _work = Ui.Button(this, Tr.T("Work: OFF"), () => AppState.SetWorking(!AppState.Guidance.Working), 72);
             _work.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 22);
             panel.AddView(_work);
             _stats = Ui.Text(this, 15, false, Palette.PanelText);
             panel.AddView(_stats);
-            panel.AddView(Ui.Button(this, Tr.T("Jobs..."), ShowJobs, 44));
 
+            // Nudge: move the active line a step left/right (as seen from the seat), snap it to here, reset.
+            panel.AddView(Label(Tr.T("Nudge line")));
+            var nudge = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+            nudge.AddView(Ui.Button(this, "◀", () => AppState.Nudge(-1), 60), Ui.Weight(1));
+            nudge.AddView(Ui.Button(this, Tr.T("Snap"), AppState.SnapLine, 60), Ui.Weight(1.2f));
+            nudge.AddView(Ui.Button(this, "▶", () => AppState.Nudge(+1), 60), Ui.Weight(1));
+            panel.AddView(nudge);
+            panel.AddView(Ui.Button(this, Tr.T("Reset nudge"), AppState.ResetNudge, 44));
+            panel.AddView(Ui.Button(this, Tr.T("Jobs..."), ShowJobs, 48));
+            // Where you are, at a glance; tap to change it.
+            _driveInfo = Ui.Text(this, 14, false, Palette.PanelLabel);
+            _driveInfo.SetPadding(0, Dp(10), 0, 0);
+            _driveInfo.Clickable = true;
+            _driveInfo.Click += (s, e) => ShowPanel(AppState.Fields.Active == null ? PanelTab.Field : PanelTab.Lines);
+            panel.AddView(_driveInfo);
+
+            // --- Field: choosing the field and recording its boundary.
+            panel = Page(PanelTab.Field, Tr.T("Field"));
             panel.AddView(Label(Tr.T("Field")));
             _field = Ui.Button(this, Tr.T("Field: none"), ShowFields, 52);
             _field.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 16);
             panel.AddView(_field);
+            panel.AddView(Label(Tr.T("Boundary")));
             _boundary = Ui.Button(this, Tr.T("Record boundary"), OnBoundaryClicked, 52);
             panel.AddView(_boundary);
             _cornerRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-            Button corner = Ui.Button(this, Tr.T("Corner"), OnCornerClicked, 64);
+            Button corner = Ui.Button(this, Tr.T("Corner"), OnCornerClicked, 72);
             corner.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 22);
             _cornerRow.AddView(corner, Ui.Weight(2));
-            _cornerRow.AddView(Ui.Button(this, Tr.T("Undo"), () => AppState.Guidance.RemoveLastCorner(), 64), Ui.Weight(1));
+            _cornerRow.AddView(Ui.Button(this, Tr.T("Undo"), () => AppState.Guidance.RemoveLastCorner(), 72), Ui.Weight(1));
             _cornerRow.Visibility = ViewStates.Gone;
             panel.AddView(_cornerRow);
             _cancelBoundary = Ui.Button(this, Tr.T("Cancel boundary"), () => AppState.Guidance.CancelBoundary(), 44);
             panel.AddView(_cancelBoundary);
 
+            // --- Lines: recording a new A-B line, choosing a saved one.
+            panel = Page(PanelTab.Lines, Tr.T("Lines"));
             panel.AddView(Label(Tr.T("New line")));
             var kinds = new LinearLayout(this) { Orientation = Orientation.Horizontal };
             _straight = Ui.Button(this, Tr.T("Straight"), () => SetKind(LineKind.Straight), 48);
@@ -923,8 +1021,8 @@ namespace AgOpenGPS.Droid
             panel.AddView(kinds);
 
             var ab = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-            _a = Ui.Button(this, "A", OnAClicked, 80);
-            _b = Ui.Button(this, "B", OnBClicked, 80);
+            _a = Ui.Button(this, "A", OnAClicked, 88);
+            _b = Ui.Button(this, "B", OnBClicked, 88);
             _a.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 28);
             _b.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 28);
             ab.AddView(_a, Ui.Weight(1));
@@ -932,25 +1030,17 @@ namespace AgOpenGPS.Droid
             panel.AddView(ab);
             _cancel = Ui.Button(this, Tr.T("Cancel line"), () => AppState.Guidance.CancelAb(), 44);
             panel.AddView(_cancel);
-            _recordInfo = Ui.Text(this, 14, false, Palette.RecordText);
-            panel.AddView(_recordInfo);
+            panel.AddView(Label(Tr.T("Saved lines")));
             panel.AddView(Ui.Button(this, Tr.T("Lines..."), ShowLines, 56));
 
-            // Nudge: move the active line a step left/right (as seen from the seat), snap it to here, reset.
-            panel.AddView(Label(Tr.T("Nudge line")));
-            var nudge = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-            nudge.AddView(Ui.Button(this, "◀", () => AppState.Nudge(-1), 52), Ui.Weight(1));
-            nudge.AddView(Ui.Button(this, Tr.T("Snap"), AppState.SnapLine, 52), Ui.Weight(1.2f));
-            nudge.AddView(Ui.Button(this, "▶", () => AppState.Nudge(+1), 52), Ui.Weight(1));
-            panel.AddView(nudge);
-            panel.AddView(Ui.Button(this, Tr.T("Reset nudge"), AppState.ResetNudge, 44));
-
-            var scroll = new ScrollView(this);
-            scroll.AddView(panel);
-            body.AddView(scroll, new LinearLayout.LayoutParams(Dp(250), ViewGroup.LayoutParams.MatchParent));
+            _panelScroll = new ScrollView(this);
+            _panelScroll.AddView(pages);
+            side.AddView(_panelScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
+            body.AddView(side, new LinearLayout.LayoutParams(Dp(260), ViewGroup.LayoutParams.MatchParent));
             root.AddView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
 
             SetKind(LineKind.Straight);
+            ShowPanel(_panelTab);
             return root;
         }
     }
