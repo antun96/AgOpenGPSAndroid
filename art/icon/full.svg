@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B1A3D"/><stop offset="0.45" stop-color="#2B3A86"/>
+      <stop offset="0.66" stop-color="#7A4E9A"/><stop offset="0.74" stop-color="#E8834A"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6B4A2E"/><stop offset="1" stop-color="#3A2614"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.82" cy="0.68" r="0.3">
+      <stop offset="0" stop-color="#FFD27A" stop-opacity="0.9"/><stop offset="1" stop-color="#FF8A3C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#sky)"/>
+  <rect width="108" height="108" fill="url(#sun)"/>
+  <circle cx="30" cy="24" r="0.8" fill="#FFFFFF" opacity="0.8"/>
+  <circle cx="46" cy="17" r="0.6" fill="#FFFFFF" opacity="0.7"/>
+  <circle cx="22" cy="40" r="0.6" fill="#FFFFFF" opacity="0.5"/>
+  <path d="M0,74 L108,74 L108,108 L0,108 Z" fill="url(#field)"/>
+  <path d="M0,74 Q20,71 40,73 Q60,70 80,72.5 Q95,71 108,73 L108,75 L0,75 Z" fill="#1C2B24"/>
+<path d="M54,74 L-36.0,108" stroke="#B6FF3C" stroke-width="1.65" opacity="0.00"/><path d="M54,74 L-6.0,108" stroke="#B6FF3C" stroke-width="1.40" opacity="0.85"/><path d="M54,74 L24.0,108" stroke="#B6FF3C" stroke-width="1.15" opacity="0.00"/><path d="M54,74 L54.0,108" stroke="#B6FF3C" stroke-width="0.90" opacity="0.00"/><path d="M54,74 L84.0,108" stroke="#B6FF3C" stroke-width="1.15" opacity="0.00"/><path d="M54,74 L114.0,108" stroke="#B6FF3C" stroke-width="1.40" opacity="0.85"/><path d="M54,74 L144.0,108" stroke="#B6FF3C" stroke-width="1.65" opacity="0.00"/><path d="M54,74 L-27.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L-18.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L-9.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L0.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L9.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L18.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L27.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L36.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L45.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L54.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L63.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L72.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L81.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L90.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L99.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L108.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L117.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L126.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><path d="M54,74 L135.0,108" stroke="#2A1A0C" stroke-width="0.6" opacity="0.5"/><g transform="translate(54,56) scale(0.88) translate(-54,-56)"><polygon points="65.13,28.19 71.00,22.32 74.68,26.00 68.81,31.87" fill="#64B5F6"/><line x1="67.09" y1="26.24" x2="70.76" y2="29.91" stroke="#0D47A1" stroke-width="0.6"/><line x1="69.04" y1="24.28" x2="72.72" y2="27.96" stroke="#0D47A1" stroke-width="0.6"/><polygon points="53.32,40.00 59.19,34.13 62.87,37.81 57.00,43.68" fill="#64B5F6"/><line x1="55.28" y1="38.04" x2="58.96" y2="41.72" stroke="#0D47A1" stroke-width="0.6"/><line x1="57.24" y1="36.09" x2="60.91" y2="39.76" stroke="#0D47A1" stroke-width="0.6"/><polygon points="64.00,28.47 68.53,33.00 64.00,37.53 59.47,33.00" fill="#ECEFF1"/><circle cx="64.00" cy="33.00" r="1.1" fill="#90A4AE"/><path d="M63.04,38.42 A5.50,5.50 0 0 1 58.58,33.96" fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" opacity="1.00"/><path d="M62.35,42.36 A9.50,9.50 0 0 1 54.64,34.65" fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" opacity="0.78"/><path d="M61.66,46.29 A13.50,13.50 0 0 1 50.71,35.34" fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" opacity="0.56"/>
+  <ellipse cx="55" cy="84" rx="26" ry="2.2" fill="#000000" opacity="0.28"/>
+  <!-- long hood, sloping to the grille -->
+  <path d="M46,55 L71,55 Q76,55 77.5,58.5 L79.5,64 L79.5,69 L46,69 Z" fill="#367C2B"/>
+  <path d="M76.6,57.6 L79.5,64 L79.5,68.5 L77,68.5 Z" fill="#1E1E1E"/>
+  <rect x="46" y="60.2" width="31" height="1.4" fill="#1E1E1E"/>
+  <rect x="47" y="56.4" width="22" height="1" fill="#5FA046" opacity="0.8"/>
+  <!-- exhaust and air intake -->
+  <rect x="63" y="44.5" width="2.2" height="11" rx="0.8" fill="#2B2B2B"/>
+  <rect x="58.5" y="49.5" width="2.6" height="6" rx="0.8" fill="#2B2B2B"/>
+  <!-- tall cab with a rounded roof -->
+  <path d="M33,40 L50.5,40 L53,58 L33,58 Z" fill="#367C2B"/>
+  <path d="M35.2,42.8 L48.8,42.8 L50.6,56.2 L35.2,56.2 Z" fill="#A7D8F0"/>
+  <line x1="42" y1="42.8" x2="42.6" y2="56.2" stroke="#2B2B2B" stroke-width="0.9"/>
+  <path d="M36.2,44 L40.5,44 L37.2,51.5 L36.2,51.5 Z" fill="#FFFFFF" opacity="0.6"/>
+  <path d="M30.5,40.2 Q31,36.2 36,36 L49,36 Q54,36.2 54.5,40.2 Z" fill="#F4F4F4"/>
+  <!-- chassis -->
+  <rect x="33" y="58" width="46.5" height="11" fill="#367C2B"/>
+  <rect x="33" y="67" width="46.5" height="2.6" fill="#1E1E1E"/>
+  <!-- rear wheel: yellow rim -->
+  <circle cx="41" cy="70" r="13" fill="#1E1E1E"/>
+  <circle cx="41" cy="70" r="11" fill="none" stroke="#333333" stroke-width="2.2" stroke-dasharray="2.4,1.6"/>
+  <circle cx="41" cy="70" r="6.6" fill="#FFDE00"/>
+  <circle cx="41" cy="70" r="2.4" fill="#C9A800"/>
+  <!-- rear fender -->
+  <path d="M26.5,66 A14.6,14.6 0 0 1 55.5,66" fill="none" stroke="#2A6221" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- front wheel (four-wheel drive: large) and its fender -->
+  <circle cx="70.5" cy="74" r="9.2" fill="#1E1E1E"/>
+  <circle cx="70.5" cy="74" r="7.6" fill="none" stroke="#333333" stroke-width="1.6" stroke-dasharray="1.8,1.3"/>
+  <circle cx="70.5" cy="74" r="4.6" fill="#FFDE00"/>
+  <circle cx="70.5" cy="74" r="1.6" fill="#C9A800"/>
+  <path d="M60.5,70.5 A10.4,10.4 0 0 1 80.5,70.5" fill="none" stroke="#2A6221" stroke-width="2" stroke-linecap="round"/>
+</g></svg>
