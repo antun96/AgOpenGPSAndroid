@@ -36,9 +36,7 @@ namespace AgOpenGPS.Droid
 
             var root = new FrameLayout(this);
             root.SetBackgroundColor(Color.ParseColor("#0B1A3D"));
-            var picture = new CoverImageView(this);
-            picture.SetImageResource(Resource.Drawable.splash); // landscape or portrait picture, as the tablet is held
-            _picture = picture;
+            var picture = new CoverImageView(this); // picks the landscape or portrait picture by its own shape
             root.AddView(picture, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
 
             // A thin yellow line that fills while the app starts.
@@ -65,15 +63,6 @@ namespace AgOpenGPS.Droid
             _ui.Post(Tick);
         }
 
-        private ImageView _picture;
-
-        /// <summary>Turned while the picture shows: take the picture for the new way up.</summary>
-        public override void OnConfigurationChanged(global::Android.Content.Res.Configuration newConfig)
-        {
-            base.OnConfigurationChanged(newConfig);
-            _picture?.SetImageResource(Resource.Drawable.splash);
-        }
-
         private void GoOn()
         {
             var intent = new Intent(this, typeof(MainActivity));
@@ -97,16 +86,27 @@ namespace AgOpenGPS.Droid
         /// <summary>
         /// Fills the screen with the picture without distorting it. What does not fit is cut from the
         /// right (or evenly top and bottom), so the title in the top left corner is always complete.
-        /// There is a landscape picture (drawable-nodpi) and a portrait one (drawable-port-nodpi).
+        /// It chooses between the landscape and the portrait picture by its own measured size (taller
+        /// than wide = portrait), so it does not depend on what the system says about the orientation,
+        /// and turning the tablet while it shows swaps the picture too.
         /// </summary>
         private sealed class CoverImageView : ImageView
         {
+            private int _shown = -1;
+
             public CoverImageView(Context c) : base(c) { SetScaleType(ScaleType.Matrix); }
 
             protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
             {
                 base.OnLayout(changed, left, top, right, bottom);
-                if (Drawable == null || Width == 0 || Height == 0) return;
+                if (Width == 0 || Height == 0) return;
+                int wanted = Height > Width ? Resource.Drawable.splash_portrait : Resource.Drawable.splash_landscape;
+                if (wanted != _shown)
+                {
+                    _shown = wanted;
+                    SetImageResource(wanted);
+                }
+                if (Drawable == null) return;
                 float iw = Drawable.IntrinsicWidth, ih = Drawable.IntrinsicHeight;
                 float scale = Math.Max(Width / iw, Height / ih);
                 float dy = (Height - ih * scale) / 2f; // centre vertically; horizontally keep the left edge
