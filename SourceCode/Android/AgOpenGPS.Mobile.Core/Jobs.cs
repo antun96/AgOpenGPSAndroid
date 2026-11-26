@@ -25,6 +25,8 @@ namespace AgOpenGPS.Mobile.Core
         /// <summary>Distance driven with Work on, metres.</summary>
         public double WorkingMeters { get; set; }
         public double ImplementWidth { get; set; }
+        /// <summary>Name of the saved implement used (the last one, if it was changed during the job).</summary>
+        public string ImplementName { get; set; } = "";
         /// <summary>What was done, e.g. "Sowing" (in the words the driver chose); empty if not given.</summary>
         public string WorkType { get; set; } = "";
         /// <summary>The driver's own note, e.g. "Wheat, 220 kg/ha, wet in the north corner".</summary>
@@ -306,8 +308,10 @@ namespace AgOpenGPS.Mobile.Core
         /// One sample: whether Work is on, the field, the implement's position and the total worked
         /// area of the field's coverage map (only its growth counts for the job).
         /// </summary>
+        /// <param name="implementName">The saved implement in use, recorded with the job.</param>
+        /// <param name="implementWorkType">The implement's usual work type: a new job starts with it.</param>
         public void Sample(DateTime nowUtc, bool working, Field field, double latitude, double longitude,
-            double coveredSquareMeters, double implementWidth)
+            double coveredSquareMeters, double implementWidth, string implementName = null, string implementWorkType = null)
         {
             lock (_lock)
             {
@@ -326,7 +330,11 @@ namespace AgOpenGPS.Mobile.Core
 
                 if (_current == null)
                 {
-                    _current = new Job { FieldId = field.Id, FieldName = field.Name, Crop = field.Crop ?? "", StartUtc = nowUtc, EndUtc = nowUtc, ImplementWidth = implementWidth };
+                    _current = new Job
+                    {
+                        FieldId = field.Id, FieldName = field.Name, Crop = field.Crop ?? "", StartUtc = nowUtc, EndUtc = nowUtc,
+                        ImplementWidth = implementWidth, ImplementName = implementName ?? "", WorkType = (implementWorkType ?? "").Trim(),
+                    };
                     _data.Jobs.Add(_current);
                     _plane = new LocalPlane(latitude, longitude);
                     _lastSample = null;
@@ -358,6 +366,7 @@ namespace AgOpenGPS.Mobile.Core
                 _lastPos = here;
                 _current.EndUtc = nowUtc;
                 _current.ImplementWidth = implementWidth;
+                if (!string.IsNullOrEmpty(implementName)) _current.ImplementName = implementName;
                 _dirty = true;
             }
         }
@@ -458,7 +467,7 @@ namespace AgOpenGPS.Mobile.Core
             var ci = CultureInfo.InvariantCulture;
             var sb = new StringBuilder();
             sb.Append(string.Join(";", new[] { "Date", "Field", "Start", "End", "Working time (h:mm)", "Worked (ha)",
-                "Distance (km)", "Average speed (km/h)", "Implement width (m)", "Work type", "Note" }.Select(t))).Append("\r\n");
+                "Distance (km)", "Average speed (km/h)", "Implement width (m)", "Work type", "Note", "Implement" }.Select(t))).Append("\r\n");
             foreach (Job j in jobs.OrderBy(j => j.StartUtc))
             {
                 DateTime s = j.StartUtc.ToLocalTime(), e = j.EndUtc.ToLocalTime();
@@ -472,7 +481,8 @@ namespace AgOpenGPS.Mobile.Core
                   .Append(double.IsNaN(j.AverageSpeedKmh) ? "" : j.AverageSpeedKmh.ToString("0.0", ci)).Append(';')
                   .Append(j.ImplementWidth.ToString("0.00", ci)).Append(';')
                   .Append(Csv(j.WorkType)).Append(';')
-                  .Append(Csv(j.Note)).Append("\r\n");
+                  .Append(Csv(j.Note)).Append(';')
+                  .Append(Csv(j.ImplementName)).Append("\r\n");
             }
             return sb.ToString();
         }

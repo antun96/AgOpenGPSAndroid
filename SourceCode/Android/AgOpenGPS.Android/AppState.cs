@@ -25,6 +25,8 @@ namespace AgOpenGPS.Droid
         public static AppSettings Settings { get; private set; }
         public static AbLineStore Lines { get; private set; }
         public static FieldStore Fields { get; private set; }
+        /// <summary>Saved implements; the one in use is copied into the settings (<see cref="UseImplement"/>).</summary>
+        public static ImplementStore Implements { get; private set; }
         public static GuidanceEngine Guidance { get; } = new GuidanceEngine();
         public static LinkSupervisor Link { get; private set; }
         public static ConcurrentQueue<string> RawLog { get; } = new ConcurrentQueue<string>();
@@ -89,7 +91,7 @@ namespace AgOpenGPS.Droid
                 // The job log follows Work (also the automatic headland pauses).
                 Jobs.Sample(DateTime.UtcNow, g.Working && receiving, g.ActiveField,
                     receiving && g.Fix != null ? g.Fix.Latitude : double.NaN, receiving && g.Fix != null ? g.Fix.Longitude : double.NaN,
-                    g.WorkedSquareMeters, Settings.ToolWidthMeters);
+                    g.WorkedSquareMeters, Settings.ToolWidthMeters, Implements?.Active?.Name, Implements?.Active?.WorkType);
                 foreach (AlertKind kind in _alerts.Update(inputs))
                 {
                     Sounds.Play(kind);
@@ -125,6 +127,8 @@ namespace AgOpenGPS.Droid
                 Fields = new FieldStore(Path.Combine(dir, "fields.json"));
                 Map = new MapTileProvider(Path.Combine(dir, "maptiles"));
                 Jobs = new JobLog(Path.Combine(dir, "jobs.json"));
+                Implements = new ImplementStore(Path.Combine(dir, Backup.ImplementsFile));
+                MigrateImplement();
                 ApplySettings();
                 Guidance.SetActiveField(Fields.Active);
                 Guidance.SetCoverage(LoadCoverage(Fields.Active));
@@ -185,6 +189,40 @@ namespace AgOpenGPS.Droid
             return (hectares, lineCount, first);
         }
 
+        // ---------------------------------------------------------------- implements
+
+        /// <summary>The first start with saved implements: the implement settings so far become the first one.</summary>
+        private static void MigrateImplement()
+        {
+            if (Implements.Implements.Count > 0) return;
+            Implements.Save(new Implement
+            {
+                Name = Implements.NextName(),
+                Width = Settings.ToolWidthMeters,
+                Overlap = AppSettings.ParseMeters(Settings.ToolOverlap, 0),
+                Behind = AppSettings.ParseSigned(Settings.ToolBehind, 0),
+                Right = AppSettings.ParseSigned(Settings.ToolRight, 0),
+            });
+        }
+
+        /// <summary>
+        /// Puts an implement on the tractor: its width, overlap, offsets (and headland width, if it has
+        /// one) become the settings in use, and it is remembered as the active one.
+        /// </summary>
+        public static void UseImplement(Implement i)
+        {
+            if (i == null) return;
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            Implements.SetActive(i.Id);
+            Settings.ToolWidth = i.Width.ToString("0.###", ci);
+            Settings.ToolOverlap = i.Overlap.ToString("0.###", ci);
+            Settings.ToolBehind = i.Behind.ToString("0.###", ci);
+            Settings.ToolRight = i.Right.ToString("0.###", ci);
+            if (i.HeadlandWidth.HasValue) Settings.HeadlandWidth = i.HeadlandWidth.Value.ToString("0.###", ci);
+            Settings.Save();
+            ApplySettings();
+        }
+
         // ---------------------------------------------------------------- full backup
 
         private static string DataDir => _context.FilesDir.AbsolutePath;
@@ -199,7 +237,7 @@ namespace AgOpenGPS.Droid
             Jobs?.Save();
             var files = new Dictionary<string, byte[]>();
             string dir = DataDir;
-            foreach (string name in new[] { Backup.FieldsFile, Backup.LinesFile, Backup.JobsFile })
+            foreach (string name in new[] { Backup.FieldsFile, Backup.LinesFile, Backup.JobsFile, Backup.ImplementsFile })
             {
                 string path = Path.Combine(dir, name);
                 if (File.Exists(path)) files[name] = File.ReadAllBytes(path);
@@ -229,7 +267,7 @@ namespace AgOpenGPS.Droid
                 Guidance.Working = false;
                 Guidance.SetCoverage(null);
                 string dir = DataDir;
-                foreach (string name in new[] { Backup.FieldsFile, Backup.LinesFile, Backup.JobsFile })
+                foreach (string name in new[] { Backup.FieldsFile, Backup.LinesFile, Backup.JobsFile, Backup.ImplementsFile })
                     File.Delete(Path.Combine(dir, name));
                 foreach (string folder in new[] { Backup.TracksFolder, Backup.CoverageFolder })
                 {
@@ -247,6 +285,8 @@ namespace AgOpenGPS.Droid
                 Lines = new AbLineStore(Path.Combine(dir, Backup.LinesFile));
                 Fields = new FieldStore(Path.Combine(dir, Backup.FieldsFile));
                 Jobs = new JobLog(Path.Combine(dir, Backup.JobsFile));
+                Implements = new ImplementStore(Path.Combine(dir, Backup.ImplementsFile));
+                MigrateImplement(); // an older backup without implements
                 Guidance.SetActiveField(Fields.Active);
                 Guidance.SetCoverage(LoadCoverage(Fields.Active));
                 AbLine line = Lines.Active;

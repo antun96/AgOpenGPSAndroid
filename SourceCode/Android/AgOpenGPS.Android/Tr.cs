@@ -63,6 +63,29 @@ namespace AgOpenGPS.Droid
 
         private static readonly Dictionary<string, string> Hr = new Dictionary<string, string>
         {
+            // ---------------------------------------------------------------- implements
+            ["+ New implement"] = "+ Novi priključak",
+            ["Edit this one"] = "Uredi ovaj",
+            ["From now on the worked area is painted with the new width."] = "Od sada se obrađena površina crta novom širinom.",
+            ["Guidance follows the implement's centre line; the worked area is painted where the implement works. Where the implement sits is set per implement (Implement section)."] = "Navođenje prati središnju liniju priključka; obrađena površina crta se gdje priključak radi. Položaj priključka postavlja se za svaki priključak (odjeljak Priključak).",
+            ["Headland width with this implement (m, empty = keep the setting)"] = "Širina uvrtina s ovim priključkom (m, prazno = ostavi postavku)",
+            ["Headland {0:0.0} m"] = "Uvrtine {0:0.0} m",
+            ["Implement on the tractor"] = "Priključak na traktoru",
+            ["Implement: {0}, {1:0.00} m"] = "Priključak: {0}, {1:0.00} m",
+            ["Name (e.g. Planter 6 rows)"] = "Naziv (npr. Sijačica 6 redova)",
+            ["New implement"] = "Novi priključak",
+            ["No implement"] = "Nema priključka",
+            ["Now using {0}: passes {1:0.00} m apart"] = "Sada se koristi {0}: prohodi su razmaknuti {1:0.00} m",
+            ["Save and use"] = "Spremi i koristi",
+            ["Save each implement once with its width, overlap and position. Choose the one on the tractor here or with the Implement button on the Drive tab."] = "Svaki priključak spremite jednom s njegovom širinom, preklopom i položajem. Onaj na traktoru odaberite ovdje ili gumbom priključka na kartici Vožnja.",
+            ["Switch"] = "Promijeni",
+            ["Use"] = "Koristi",
+            ["Usual work (a new job starts with it; empty = ask)"] = "Uobičajeni rad (novi posao počinje s njim; prazno = pitaj)",
+            ["Width {0:0.00} m, overlap {1:0.00} m, passes {2:0.00} m apart"] = "Širina {0:0.00} m, preklop {1:0.00} m, prohodi razmaknuti {2:0.00} m",
+            ["Work is on. Switch to {0}?"] = "Rad je uključen. Promijeniti na {0}?",
+            ["Work: {0}"] = "Rad: {0}",
+            ["Works {0:0.00} m behind the rear axle, {1:+0.00;-0.00;0.00} m to the right"] = "Radi {0:0.00} m iza stražnje osovine, {1:+0.00;-0.00;0.00} m desno",
+            ["in use"] = "u uporabi",
             // ---------------------------------------------------------------- driving screen tabs
             ["Boundary"] = "Međa",
             ["Drive"] = "Vožnja",

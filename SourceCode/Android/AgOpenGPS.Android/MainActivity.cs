@@ -48,6 +48,7 @@ namespace AgOpenGPS.Droid
         private readonly Dictionary<PanelTab, (LinearLayout Page, Button Button)> _panelTabs = new Dictionary<PanelTab, (LinearLayout, Button)>();
         private bool _wasRecordingBoundary, _wasRecordingLine;
         private TextView _driveInfo;
+        private Button _implementButton;
         private HorizontalScrollView _simScroll;
         private ScrollView _panelScroll;
         private Button _followButton, _tiltButton;
@@ -615,9 +616,10 @@ namespace AgOpenGPS.Droid
             _view.ShowCoverage = coverageOn && AppState.Settings.ShowCoverage;
             _view.Show(g);
 
+            _implementButton.Text = ImplementDialogs.Short(AppState.Implements.Active) + "  ▾";
             _work.Visibility = coverageOn ? ViewStates.Visible : ViewStates.Gone;
             _stats.Visibility = coverageOn ? ViewStates.Visible : ViewStates.Gone;
-            _workLabel.Visibility = _work.Visibility;
+            _workLabel.Visibility = ViewStates.Visible; // the implement button below it is always there
             _work.Text = g.Working ? Tr.T("Work: ON") : g.WorkPausedInHeadland ? Tr.T("Work: headland") : Tr.T("Work: OFF");
             _work.SetBackgroundColor(Color.ParseColor(g.Working ? "#2E7D32" : "#9E9E9E"));
             _work.SetTextColor(Color.White);
@@ -969,6 +971,10 @@ namespace AgOpenGPS.Droid
             LinearLayout panel = Page(PanelTab.Drive, Tr.T("Drive"));
             _workLabel = Label(Tr.T("Implement"));
             panel.AddView(_workLabel);
+            // The implement on the tractor: one tap to switch to another saved one.
+            _implementButton = Ui.Button(this, "", () => ImplementDialogs.Choose(this, null), 48);
+            _implementButton.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 15);
+            panel.AddView(_implementButton);
             _work = Ui.Button(this, Tr.T("Work: OFF"), () => AppState.SetWorking(!AppState.Guidance.Working), 72);
             _work.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 22);
             panel.AddView(_work);

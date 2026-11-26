@@ -45,11 +45,12 @@ namespace AgOpenGPS.Droid
         private CheckBox _autoConnect, _ntripEnabled, _rawLog, _recordCoverage, _showCoverage, _useSim, _showMap;
         private EditText _mapMaxZoom, _alertEdge, _alertOffLine;
         private readonly Dictionary<AlertKind, CheckBox> _alertBoxes = new Dictionary<AlertKind, CheckBox>();
-        private EditText _antHeight, _antForward, _antRight, _toolBehind, _toolRight, _wheelbase, _nudgeStep, _simLat, _simLon, _mapUrl, _mapAttribution;
+        private EditText _antHeight, _antForward, _antRight, _wheelbase, _nudgeStep, _simLat, _simLon, _mapUrl, _mapAttribution;
         private TextView _mapStatus;
         private System.Threading.CancellationTokenSource _prefetch;
-        private EditText _width, _overlap, _host, _port, _mount, _user, _password, _gga;
-        private TextView _workingWidth, _status, _raw;
+        private EditText _host, _port, _mount, _user, _password, _gga;
+        private TextView _status, _raw;
+        private LinearLayout _implementList;
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -83,8 +84,6 @@ namespace AgOpenGPS.Droid
             int index = _devices.SelectedItemPosition;
             if (index >= 0 && index < _deviceAddresses.Count) s.DeviceAddress = _deviceAddresses[index];
             s.AutoConnect = _autoConnect.Checked;
-            s.ToolWidth = _width.Text.Trim();
-            s.ToolOverlap = _overlap.Text.Trim();
             s.NtripEnabled = _ntripEnabled.Checked;
             s.NtripHost = _host.Text.Trim();
             s.NtripPort = _port.Text.Trim();
@@ -96,8 +95,6 @@ namespace AgOpenGPS.Droid
             s.AntennaHeight = _antHeight.Text.Trim();
             s.AntennaForward = _antForward.Text.Trim();
             s.AntennaRight = _antRight.Text.Trim();
-            s.ToolBehind = _toolBehind.Text.Trim();
-            s.ToolRight = _toolRight.Text.Trim();
             s.Wheelbase = _wheelbase.Text.Trim();
             s.NudgeStepCm = _nudgeStep.Text.Trim();
             s.UseSimulator = _useSim.Checked;
@@ -144,8 +141,6 @@ namespace AgOpenGPS.Droid
         {
             AppSettings s = AppState.Settings;
             _autoConnect.Checked = s.AutoConnect;
-            _width.Text = s.ToolWidth;
-            _overlap.Text = s.ToolOverlap;
             _ntripEnabled.Checked = s.NtripEnabled;
             _host.Text = s.NtripHost;
             _port.Text = s.NtripPort;
@@ -160,8 +155,6 @@ namespace AgOpenGPS.Droid
             _antHeight.Text = s.AntennaHeight;
             _antForward.Text = s.AntennaForward;
             _antRight.Text = s.AntennaRight;
-            _toolBehind.Text = s.ToolBehind;
-            _toolRight.Text = s.ToolRight;
             _wheelbase.Text = s.Wheelbase;
             _nudgeStep.Text = s.NudgeStepCm;
             _useSim.Checked = s.UseSimulator;
@@ -181,16 +174,43 @@ namespace AgOpenGPS.Droid
                 long bytes = AppState.Map.DiskBytes();
                 RunOnUiThread(() => _mapStatus.Text = string.Format(Inv, Tr.T("Saved on the tablet: {0:0.0} MB"), bytes / 1048576.0));
             });
-            UpdateWorkingWidth();
         }
 
-        private void UpdateWorkingWidth()
+        /// <summary>The saved implements as buttons: tap to edit; "Use" puts one on the tractor.</summary>
+        private void ShowImplements()
         {
-            double w = AppSettings.ParseMeters(_width.Text, double.NaN);
-            double o = AppSettings.ParseMeters(_overlap.Text, double.NaN);
-            _workingWidth.Text = double.IsNaN(w) || double.IsNaN(o)
-                ? Tr.T("Enter the width in metres, e.g. 6.0")
-                : string.Format(Inv, Tr.T("Distance between passes: {0:0.00} m"), System.Math.Max(0.1, w - o));
+            if (_implementList == null) return;
+            // An implement may bring its own headland width: show it, so leaving Settings keeps it.
+            if (_headlandWidth != null) _headlandWidth.Text = AppState.Settings.HeadlandWidth;
+            _implementList.RemoveAllViews();
+            string active = AppState.Implements.Active?.Id;
+            foreach (Implement i in AppState.Implements.Implements)
+            {
+                Implement item = i;
+                var row = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+                row.SetGravity(GravityFlags.CenterVertical);
+                var text = new LinearLayout(this) { Orientation = Orientation.Vertical };
+                TextView title = Ui.Text(this, 17, true);
+                title.Text = (i.Id == active ? "▶ " : "") + i.Name;
+                text.AddView(title);
+                text.AddView(Ui.Hint(this, ImplementDialogs.Details(i)));
+                text.Clickable = true;
+                text.Click += (s, e) => ImplementDialogs.Edit(this, item, ShowImplements);
+                row.AddView(text, Ui.Weight(1));
+                if (i.Id != active)
+                    row.AddView(Ui.Button(this, Tr.T("Use"), () =>
+                    {
+                        AppState.UseImplement(item);
+                        ShowImplements();
+                    }, 44));
+                else
+                {
+                    TextView inUse = Ui.Hint(this, Tr.T("in use"));
+                    inUse.SetPadding(Ui.Dp(this, 12), 0, Ui.Dp(this, 12), 0);
+                    row.AddView(inUse);
+                }
+                _implementList.AddView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent) { BottomMargin = Ui.Dp(this, 8) });
+            }
         }
 
         private void LoadPairedDevices()
@@ -508,15 +528,12 @@ namespace AgOpenGPS.Droid
             page.AddView(_autoConnect);
 
             page = Section(Tr.T("Implement"));
-            _width = Ui.Field(this, page, Tr.T("Implement width (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            page.AddView(Ui.Hint(this, Tr.T("The real full width of the implement. The worked area always uses the full width.")));
-            _overlap = Ui.Field(this, page, Tr.T("Overlap (m)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            page.AddView(Ui.Hint(this, Tr.T("Only for the spacing between passes: passes are implement width minus overlap apart.")));
-            _workingWidth = Ui.Hint(this, "");
-            page.AddView(_workingWidth);
-            _width.TextChanged += (s, e) => UpdateWorkingWidth();
-            _overlap.TextChanged += (s, e) => UpdateWorkingWidth();
+            page.AddView(Ui.Hint(this, Tr.T("Save each implement once with its width, overlap and position. Choose the one on the tractor here or with the Implement button on the Drive tab.")));
+            _implementList = new LinearLayout(this) { Orientation = Orientation.Vertical };
+            page.AddView(_implementList);
+            page.AddView(Ui.Button(this, Tr.T("+ New implement"), () => ImplementDialogs.Edit(this, null, ShowImplements), 48));
             page.AddView(Ui.Hint(this, Tr.T("Guidance is for the antenna position.")));
+            ShowImplements();
 
             page = Section(Tr.T("Vehicle"));
             page.AddView(Ui.Hint(this, Tr.T("Metres. Measure from the middle of the rear axle. Left / behind = negative.")));
@@ -524,10 +541,8 @@ namespace AgOpenGPS.Droid
             _antHeight = Ui.Field(this, page, Tr.T("Antenna height above ground (corrects tilt on slopes; needs roll from the receiver)"), signed);
             _antForward = Ui.Field(this, page, Tr.T("Antenna ahead of the rear axle"), signed);
             _antRight = Ui.Field(this, page, Tr.T("Antenna right of the centre line"), signed);
-            _toolBehind = Ui.Field(this, page, Tr.T("Implement working line behind the rear axle (front mounted = negative)"), signed);
-            _toolRight = Ui.Field(this, page, Tr.T("Implement centre right of the tractor centre line"), signed);
             _wheelbase = Ui.Field(this, page, Tr.T("Wheelbase (simulator and steering)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
-            page.AddView(Ui.Hint(this, Tr.T("Guidance follows the implement's centre line; the worked area is painted where the implement works.")));
+            page.AddView(Ui.Hint(this, Tr.T("Guidance follows the implement's centre line; the worked area is painted where the implement works. Where the implement sits is set per implement (Implement section).")));
             _nudgeStep = Ui.Field(this, page, Tr.T("Nudge step (cm)"), InputTypes.ClassNumber | InputTypes.NumberFlagDecimal);
 
             page = Section(Tr.T("Headland"));

@@ -85,7 +85,8 @@ namespace AgOpenGPS.Droid
             box.SetPadding(pad, Ui.Dp(a, 8), pad, 0);
             box.AddView(Ui.Hint(a, Tr.F("{0}   {1} - {2}   {3:0.00} ha", job.FieldName,
                 job.StartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm", Inv), job.EndUtc.ToLocalTime().ToString("HH:mm", Inv), job.Hectares)
-                + (string.IsNullOrEmpty(job.Crop) ? "" : "   " + job.Crop)));
+                + (string.IsNullOrEmpty(job.Crop) ? "" : "   " + job.Crop)
+                + (string.IsNullOrEmpty(job.ImplementName) ? "" : "\n" + Tr.F("Implement: {0}, {1:0.00} m", job.ImplementName, job.ImplementWidth))));
 
             box.AddView(Ui.Hint(a, Tr.T("Work type")));
             var type = new AutoCompleteTextView(a) { Text = job.WorkType, Threshold = 0 };

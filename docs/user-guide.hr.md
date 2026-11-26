@@ -13,7 +13,7 @@
 2. Otvorite **☰ Izbornik → Postavke**. Odjeljci su popisani lijevo; dodirnite jedan da ga vidite:
    - **Jezik**: Sustav, English ili Hrvatski. **Boje**: *Noć* (tamno) ili *Dan* (svijetlo, za jako sunce).
    - **Prijemnik**: odaberite upareni uređaj. *Automatski se spoji* spaja se pri svakom pokretanju.
-   - **Priključak**: puna **širina priključka** i **preklop**. Prohodi su razmaknuti za širinu umanjenu za preklop.
+   - **Priključak**: svaki priključak spremite jednom (vidi *Priključci* niže).
    - **Vozilo**: položaj antene, mjereno od sredine stražnje osovine (lijevo i iza su negativni). Ako niste sigurni, ostavite 0.
    - **NTRIP**: poslužitelj, port, mountpoint, korisnik i lozinka te označite *Šalji NTRIP korekcije*.
 3. Vratite se (**Natrag**) i pritisnite **Spoji**.
@@ -31,6 +31,12 @@
 - Kartica **Linije**: **Ravna** ili **Krivulja**, **A** i **B** te spremljene **Linije...**.
 - Snimanje međe ili linije samo otvara svoju karticu; kad završi, vraćate se na **Vožnja**.
 - **☰ Izbornik** (gore desno): **Evidencija**, **Postavke** i **Pomoć**.
+
+## Priključci
+
+Svaki priključak spremite jednom, s nazivom, punom **širinom**, **preklopom** (prohodi su razmaknuti za širinu umanjenu za preklop), gdje radi iza i pokraj traktora te po želji vlastitom **širinom uvrtina** i **uobičajenim radom** (npr. *Sjetva*). **Postavke → Priključak** ih prikazuje: dodirom ga uređujete, **Koristi** ga stavlja na traktor, **+ Novi priključak** dodaje novi.
+
+Na kartici **Vožnja** gumb ispod *Priključak* pokazuje onaj u uporabi (npr. **Sijačica 6 redova · 4.50 m ▾**). Dodirnite ga za promjenu. Ako je Rad uključen, aplikacija najprije pita. Svaki posao bilježi priključak, a novi posao počinje uobičajenim radom priključka.
 
 ## Parcele
 

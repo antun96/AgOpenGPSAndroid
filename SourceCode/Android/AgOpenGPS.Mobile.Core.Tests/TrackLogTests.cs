@@ -216,7 +216,7 @@ namespace AgOpenGPS.Mobile.Core.Tests
             Assert.That(j.Note, Is.EqualTo("220 kg/ha; wet \"north\" corner"));
 
             string csv = JobLog.ToCsv(again.Jobs);
-            Assert.That(csv.Split("\r\n")[0], Does.EndWith(";Work type;Note"));
+            Assert.That(csv.Split("\r\n")[0], Does.EndWith(";Work type;Note;Implement"));
             Assert.That(csv, Does.Contain(";Sowing wheat;\"220 kg/ha; wet \"\"north\"\" corner\""), "quoted for Excel");
 
             var tracks = new List<JobTrack> { new JobTrack { Job = j, Pieces = again.Track(j.Id) } };

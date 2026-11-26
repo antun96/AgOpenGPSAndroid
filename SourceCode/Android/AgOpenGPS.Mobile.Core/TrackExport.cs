@@ -80,6 +80,7 @@ namespace AgOpenGPS.Mobile.Core
                         w.WriteStartObject("properties");
                         w.WriteString("field", j.FieldName ?? "");
                         w.WriteString("workType", j.WorkType ?? "");
+                        w.WriteString("implement", j.ImplementName ?? "");
                         w.WriteString("note", j.Note ?? "");
                         w.WriteString("start", Iso(j.StartUtc));
                         w.WriteString("end", Iso(j.EndUtc));

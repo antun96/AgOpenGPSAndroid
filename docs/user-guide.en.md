@@ -13,7 +13,7 @@
 2. Open **☰ Menu → Settings**. The sections are listed on the left; tap one to see it:
    - **Language**: System, English or Hrvatski. **Colours**: *Night* (dark) or *Day* (light, for bright sun).
    - **Receiver**: pick the paired device. *Connect automatically* connects at every start.
-   - **Implement**: the full **implement width** and the **overlap**. Passes are width minus overlap apart.
+   - **Implement**: save each implement once (see *Implements* below).
    - **Vehicle**: where the antenna sits, measured from the middle of the rear axle (left and behind are negative). Leave 0 if unsure.
    - **NTRIP**: caster host, port, mountpoint, user and password, and tick *Send NTRIP corrections*.
 3. Go **Back** and press **Connect**.
@@ -31,6 +31,12 @@
 - Tab **Lines**: **Straight** or **Curve**, **A** and **B**, and the saved **Lines...**.
 - Recording a boundary or a line opens its tab by itself; when it is done, you are back on **Drive**.
 - **☰ Menu** (top right): **Records**, **Settings** and **Help**.
+
+## Implements
+
+Save every implement once, with its name, full **width**, **overlap** (passes are width minus overlap apart), where it works behind and beside the tractor, and if you like its own **headland width** and **usual work** (e.g. *Sowing*). **Settings → Implement** lists them: tap one to edit it, **Use** to put it on the tractor, **+ New implement** to add one.
+
+On the **Drive** tab, the button under *Implement* shows the one in use (e.g. **Planter 6 rows · 4.50 m ▾**). Tap it to switch to another. If Work is on, the app asks first. Each job records the implement, and a new job starts with the implement's usual work.
 
 ## Fields
 

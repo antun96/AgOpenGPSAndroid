@@ -11,7 +11,7 @@ namespace AgOpenGPS.Mobile.Core
     /// <summary>
     /// One backup file. Version 1: all settings (as typed key/value pairs) plus the fields as the
     /// GeoJSON of <see cref="Guidance.FieldExport"/>. Version 2 ("everything") adds the app's data
-    /// files as they are: fields, lines, the job log, the tracks and the worked area of each field,
+    /// files as they are: fields, lines, implements, the job log, the tracks and the worked area of each field,
     /// so restoring it on another tablet gives an exact copy, jobs still linked to their fields.
     /// </summary>
     public static class Backup
@@ -19,7 +19,7 @@ namespace AgOpenGPS.Mobile.Core
         public const string Type = "AgOpenGPSAndroidBackup";
 
         /// <summary>The data files a full backup holds, relative to the app's data folder.</summary>
-        public const string FieldsFile = "fields.json", LinesFile = "ablines.json", JobsFile = "jobs.json";
+        public const string FieldsFile = "fields.json", LinesFile = "ablines.json", JobsFile = "jobs.json", ImplementsFile = "implements.json";
         public const string TracksFolder = "tracks", CoverageFolder = "coverage";
 
         /// <summary>
@@ -30,7 +30,7 @@ namespace AgOpenGPS.Mobile.Core
         public static bool IsDataFile(string relativePath)
         {
             if (string.IsNullOrEmpty(relativePath)) return false;
-            if (relativePath == FieldsFile || relativePath == LinesFile || relativePath == JobsFile) return true;
+            if (relativePath == FieldsFile || relativePath == LinesFile || relativePath == JobsFile || relativePath == ImplementsFile) return true;
             string[] parts = relativePath.Split('/');
             if (parts.Length != 2) return false;
             string ext = parts[0] == TracksFolder ? ".trk" : parts[0] == CoverageFolder ? ".bin" : null;
